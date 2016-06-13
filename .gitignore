@@ -1,0 +1,8 @@
+*.exe*
+*-config.json
+*.log
+*.html
+*coverage.*
+*.iml
+concept-publisher
+.idea/
