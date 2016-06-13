@@ -1,4 +1,4 @@
-# UP Queue Sender (up-queue-sender)
+# Concept publisher (concept-publisher)
 [![Circle CI](https://circleci.com/gh/Financial-Times/concept-publisher/tree/master.png?style=shield)](https://circleci.com/gh/Financial-Times/concept-publisher/tree/master)
 
 __Retrives transformed concepts and add them to kafka.__
