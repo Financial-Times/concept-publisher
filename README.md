@@ -40,7 +40,7 @@ url: url to use to get the transformed concept
 * {url}/{uid} that returns the transformed concept in UPP json format
 * {url}/__count returns the number of concepts - optional
 
-throttle: no of req/s when calling the transformers to get transformed content
+throttle: no of req/s when calling the transformers to get transformed content  
 authorization: authorization credentials if necessary - optional
 
 
