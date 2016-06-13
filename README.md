@@ -32,8 +32,8 @@ With Docker:
 
 ## Endpoints
 
-/jobs
-### POST
+### /jobs
+#### POST
 url: url to use to get the transformed concept
 * can either be absolute of relative - for relative the base url is TRANSFORMER_ADDR
 * {url}/__ids that lists the identities of the resources in the form '{"id":"abc"}\n{"id":"123"}'
@@ -48,12 +48,12 @@ Example:
 `curl -X PUT -H "Content-Type: application/json" localhost:8080/jobs --data '{"url": "http://localhost:8080/transformers/organisations/", "throttle": 100, "authorization": "Basic base64user:pass"}'`
 `{"jobId":"job_sMxULvEpjw"}`
 
-### GET
+#### GET
 Gets all the jobs:
 `[{"jobId":"job_XVlBzgbaiC"},{"jobId":"job_sMxULvEpjw"},{"jobId":"job_FKBAuIiPSO"},{"jobId":"job_ViPAxUKQsR"}]`
 
 
-/jobs/{id}
+### /jobs/{id}
 ### GET
 Get job status
 
