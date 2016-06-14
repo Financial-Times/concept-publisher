@@ -41,22 +41,26 @@ func newPublishService(transAddr *url.URL, producer producer.MessageProducer) pu
 	return publishService{transAddr: transAddr, producer: producer, mutex: &sync.RWMutex{}, jobs: make(map[string]*jobStatus)}
 }
 
-func (s *publishService) newJob(baseURL *url.URL, authorization string, throttle int) (string, error) {
+func (s *publishService) newJob(baseURL *url.URL, authorization string, throttle int) string {
 	if baseURL.Host == "" {
 		baseURL.Scheme = s.transAddr.Scheme
 		baseURL.Host = s.transAddr.Host
 	}
+	jobID := "job_" + generateID()
 	c, err := getCount(baseURL, authorization)
 	if err != nil {
-		log.Warn("Could not determine count. Ignoring. (%v)", err)
+		log.Errorf("Could not determine count: (%v)", err)
+		s.mutex.Lock()
+		s.jobs[jobID] = &jobStatus{URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "Failed"}
+		s.mutex.Unlock()
+		return jobID
 	}
-	jobID := "job_" + generateID()
 	s.mutex.Lock()
 	s.jobs[jobID] = &jobStatus{URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "In progress"}
 	s.mutex.Unlock()
 	go s.publishConcepts(jobID, baseURL, authorization, throttle)
 
-	return jobID, nil
+	return jobID
 }
 
 func (s *publishService) jobStatus(jobID string) (*jobStatus, error) {
@@ -167,6 +171,12 @@ func fetchIDList(baseURL *url.URL, authorization string, ids chan<- string, erro
 		resp.Body.Close()
 	}()
 
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println("Could not get /__ids")
+		errors <- fmt.Errorf("Could not get /__ids from %v. Returned %v", baseURL, resp.StatusCode)
+		return
+	}
+
 	type listEntry struct {
 		ID string `json:"id"`
 	}
@@ -197,6 +207,10 @@ func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- conce
 		resp, err := httpClient.Do(req)
 		if err != nil {
 			errors <- fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err)
+			return
+		}
+		if resp.StatusCode != http.StatusOK {
+			errors <- fmt.Errorf("Could not get concept %v from %v. Returned %v", id, baseURL, resp.StatusCode)
 			return
 		}
 		data, err := ioutil.ReadAll(resp.Body)

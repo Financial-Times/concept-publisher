@@ -128,7 +128,7 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 	}
 
-	id, _ := h.service.newJob(u, jr.Authorization, jr.Throttle)
+	id := h.service.newJob(u, jr.Authorization, jr.Throttle)
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(job{JobID: id}); err != nil {
