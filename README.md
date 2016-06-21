@@ -46,7 +46,7 @@ authorization: authorization credentials if necessary - optional
 
 
 Example:
-`curl -X PUT -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","url": "http://localhost:8080/transformers/organisations/", "throttle": 100, "authorization": "Basic base64user:pass"}'`
+`curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","url": "http://localhost:8080/transformers/organisations/", "throttle": 100, "authorization": "Basic base64user:pass"}'`
 `{"jobId":"job_sMxULvEpjw"}`
 
 #### GET
