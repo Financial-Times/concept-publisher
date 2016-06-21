@@ -19,10 +19,6 @@ import (
 	"net/url"
 )
 
-func init() {
-	log.SetFormatter(new(log.JSONFormatter))
-}
-
 func main() {
 	app := cli.App("concept-publisher", "Retrieves concepts and puts them on a queue")
 	port := app.String(cli.StringOpt{
@@ -80,6 +76,7 @@ func serve(port string, h handler) {
 }
 
 type createJobRequest struct {
+	Concept       string `json:"concept"`
 	URL           string `json:"url"`
 	Throttle      int    `json:"throttle"`
 	Authorization string `json:"authorization"`
@@ -90,6 +87,7 @@ type job struct {
 }
 
 type jobStatus struct {
+	Concept  string `json:"concept"`
 	URL      string `json:"url"`
 	Throttle int    `json:"throttle"`
 	Count    int    `json:"count"`
@@ -110,6 +108,12 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if jr.Concept == "" {
+		err := "Concept empty"
+		log.Errorf(err)
+		http.Error(w, err, http.StatusBadRequest)
+		return
+	}
 	if jr.URL == "" {
 		err := "Base url empty"
 		log.Errorf(err)
@@ -128,7 +132,7 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 	}
 
-	id := h.service.newJob(u, jr.Authorization, jr.Throttle)
+	id := h.service.newJob(jr.Concept, u, jr.Authorization, jr.Throttle)
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(job{JobID: id}); err != nil {
