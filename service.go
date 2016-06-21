@@ -102,7 +102,7 @@ func (s *publishService) publishConcepts(jobID string, baseURL *url.URL, authori
 	s.mutex.RLock()
 	count := s.jobs[jobID].Count
 	s.mutex.RUnlock()
-	th := count / 10
+	th := 1000
 	for i := 0; i < count; i++ {
 		select {
 		case err := <-errors:
@@ -209,12 +209,17 @@ func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- conce
 			errors <- fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err)
 			return
 		}
+		defer func() {
+			io.Copy(ioutil.Discard, resp.Body)
+			resp.Body.Close()
+		}()
+
 		if resp.StatusCode != http.StatusOK {
 			errors <- fmt.Errorf("Could not get concept %v from %v. Returned %v", id, baseURL, resp.StatusCode)
 			return
 		}
 		data, err := ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
+
 		if err != nil {
 			errors <- fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err)
 			return
