@@ -41,7 +41,7 @@ func newPublishService(transAddr *url.URL, producer producer.MessageProducer) pu
 	return publishService{transAddr: transAddr, producer: producer, mutex: &sync.RWMutex{}, jobs: make(map[string]*jobStatus)}
 }
 
-func (s *publishService) newJob(baseURL *url.URL, authorization string, throttle int) string {
+func (s *publishService) newJob(concept string, baseURL *url.URL, authorization string, throttle int) string {
 	if baseURL.Host == "" {
 		baseURL.Scheme = s.transAddr.Scheme
 		baseURL.Host = s.transAddr.Host
@@ -51,14 +51,14 @@ func (s *publishService) newJob(baseURL *url.URL, authorization string, throttle
 	if err != nil {
 		log.Errorf("Could not determine count: (%v)", err)
 		s.mutex.Lock()
-		s.jobs[jobID] = &jobStatus{URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "Failed"}
+		s.jobs[jobID] = &jobStatus{Concept: concept, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "Failed"}
 		s.mutex.Unlock()
 		return jobID
 	}
 	s.mutex.Lock()
-	s.jobs[jobID] = &jobStatus{URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "In progress"}
+	s.jobs[jobID] = &jobStatus{Concept: concept, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "In progress"}
 	s.mutex.Unlock()
-	go s.publishConcepts(jobID, baseURL, authorization, throttle)
+	go s.publishConcepts(jobID, concept, baseURL, authorization, throttle)
 
 	return jobID
 }
@@ -87,7 +87,7 @@ type concept struct {
 	payload string
 }
 
-func (s *publishService) publishConcepts(jobID string, baseURL *url.URL, authorization string, throttle int) {
+func (s *publishService) publishConcepts(jobID string, conceptType string, baseURL *url.URL, authorization string, throttle int) {
 	ticker := time.NewTicker(time.Second / time.Duration(throttle))
 
 	concepts := make(chan concept, 128)
@@ -109,7 +109,7 @@ func (s *publishService) publishConcepts(jobID string, baseURL *url.URL, authori
 			s.handleErr(jobID, err)
 			return
 		case c := <-concepts:
-			message := producer.Message{Headers: buildHeader(c.id), Body: c.payload}
+			message := producer.Message{Headers: buildHeader(c.id, conceptType), Body: c.payload}
 			err := s.producer.SendMessage(c.id, message)
 			if err != nil {
 				s.handleErr(jobID, err)
@@ -257,10 +257,10 @@ func getCount(baseURL *url.URL, authorization string) (int, error) {
 
 }
 
-func buildHeader(uuid string) map[string]string {
+func buildHeader(uuid string, concept string) map[string]string {
 	return map[string]string{
 		"Message-Id":        uuid,
-		"Message-Type":      "concept-published",
+		"Message-Type":      concept,
 		"Content-Type":      "application/json",
 		"X-Request-Id":      "tid_" + generateID(),
 		"Origin-System-Id":  "http://cmdb.ft.com/systems/upp",

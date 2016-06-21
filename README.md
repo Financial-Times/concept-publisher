@@ -34,6 +34,7 @@ With Docker:
 
 ### /jobs
 #### POST
+concept: organisations, people, subjects, locations...
 url: url to use to get the transformed concept
 * can either be absolute of relative - for relative the base url is TRANSFORMER_ADDR
 * {url}/__ids that lists the identities of the resources in the form '{"id":"abc"}\n{"id":"123"}'
@@ -45,7 +46,7 @@ authorization: authorization credentials if necessary - optional
 
 
 Example:
-`curl -X PUT -H "Content-Type: application/json" localhost:8080/jobs --data '{"url": "http://localhost:8080/transformers/organisations/", "throttle": 100, "authorization": "Basic base64user:pass"}'`
+`curl -X PUT -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","url": "http://localhost:8080/transformers/organisations/", "throttle": 100, "authorization": "Basic base64user:pass"}'`
 `{"jobId":"job_sMxULvEpjw"}`
 
 #### GET
@@ -58,4 +59,4 @@ Gets all the jobs:
 Get job status
 
 `curl "localhost:9090/jobs/job_ViPAxUKQsR"`
-`{"url":"http://localhost:8080/transformers/organisations/","throttle":100,"count":9859,"done":8865,"status":"In progress"}`
+`{"concept":"organisations","url":"http://localhost:8080/transformers/organisations/","throttle":100,"count":9859,"done":8865,"status":"In progress"}`
