@@ -30,6 +30,12 @@ var httpClient = &http.Client{
 	},
 }
 
+type pubService interface {
+	newJob(concept string, baseURL *url.URL, authorization string, throttle int) string
+	jobStatus(jobID string) (*jobStatus, error)
+	getJobs() []job
+}
+
 type publishService struct {
 	transAddr *url.URL
 	producer  producer.MessageProducer
