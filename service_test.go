@@ -47,7 +47,7 @@ func TestPublishService(t *testing.T) {
 	p := &dummyProducer{msgs: make(map[string]producer.Message)}
 	s := newPublishService(u, p)
 	jobID := s.newJob("organisations", u, "", 1)
-	var job *jobStatus
+	var job jobStatus
 	for i := 0; ; i++ {
 		if i > 10 {
 			t.Error("Job did not complete")
@@ -60,7 +60,7 @@ func TestPublishService(t *testing.T) {
 		time.Sleep(1 * time.Second)
 	}
 
-	assert.EqualValues(t, &jobStatus{URL: ts.URL + "/", Concept: "organisations", Count: 2, Throttle: 1, Done: 2, Status: "Completed"}, job)
+	assert.EqualValues(t, jobStatus{URL: ts.URL + "/", Concept: "organisations", Count: 2, Throttle: 1, Done: 2, Status: "Completed"}, job)
 	assert.Equal(t, 2, len(p.msgs), "Should have produced 2 messages")
 	assert.Equal(t, uuid1, p.msgs[uuid1].Headers["Message-Id"])
 	assert.Equal(t, "organisations", p.msgs[uuid1].Headers["Message-Type"])

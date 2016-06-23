@@ -14,7 +14,7 @@ import (
 const (
 	CreateJob                = "{\"concept\":\"organisations\",\"url\": \"http://localhost:8080/transformers/organisations/\", \"throttle\": 100}"
 	CreateJobInvalidPayload  = "\"concept\":\"organisations\",\"url\": \"http://localhost:8080/transformers/organisations/\", \"throttle\": 100}"
-	CreateJobMissingUrl      = "{\"concept\":\"organisations\", \"throttle\": 100}"
+	CreateJobMissingURL      = "{\"concept\":\"organisations\", \"throttle\": 100}"
 	CreateJobInvalidThrottle = "{\"concept\":\"organisations\",\"url\": \"http://localhost:8080/transformers/organisations/\", \"throttle\": -200}"
 	CreateJobMissingConcept  = "{\"url\": \"http://localhost:8080/transformers/organisations/\", \"throttle\": 100}"
 )
@@ -31,7 +31,7 @@ func TestHandlers(t *testing.T) {
 		{"Success - create new job", newRequest("POST", "/jobs", CreateJob), http.StatusOK, "application/json", "{\"jobId\":\"job_id\"}\n"},
 		{"Bad request - create new job missing concept", newRequest("POST", "/jobs", CreateJobMissingConcept), http.StatusBadRequest, "text/plain; charset=utf-8", "Concept empty\n"},
 		{"Bad request - create new job invalid throttle", newRequest("POST", "/jobs", CreateJobInvalidThrottle), http.StatusBadRequest, "text/plain; charset=utf-8", "Invalid throttle: -200\n"},
-		{"Bad request - create new job missing url", newRequest("POST", "/jobs", CreateJobMissingUrl), http.StatusBadRequest, "text/plain; charset=utf-8", "Base url empty\n"},
+		{"Bad request - create new job missing url", newRequest("POST", "/jobs", CreateJobMissingURL), http.StatusBadRequest, "text/plain; charset=utf-8", "Base url empty\n"},
 		{"Bad request - create new job invalid payload", newRequest("POST", "/jobs", CreateJobInvalidPayload), http.StatusBadRequest, "text/plain; charset=utf-8", "Invalid payload: (json: cannot unmarshal string into Go value of type main.createJobRequest)\n"},
 		{"Success - get job", newRequest("GET", "/jobs/jobID", ""), http.StatusOK, "application/json", "{\"concept\":\"organisations\",\"url\":\"http://localhost:8080/transformers/organisations/\",\"throttle\":100,\"count\":1000,\"done\":150,\"status\":\"In progress\"}\n"},
 		{"Success - get list jobs", newRequest("GET", "/jobs", ""), http.StatusOK, "application/json", "[{\"jobId\":\"job_id\"}]\n"},
@@ -69,8 +69,8 @@ type dummyService struct {
 func (d *dummyService) newJob(concept string, baseURL *url.URL, authorization string, throttle int) string {
 	return "job_id"
 }
-func (d *dummyService) jobStatus(jobID string) (*jobStatus, error) {
-	return &jobStatus{Concept: "organisations", URL: "http://localhost:8080/transformers/organisations/", Throttle: 100, Status: "In progress", Done: 150, Count: 1000}, nil
+func (d *dummyService) jobStatus(jobID string) (jobStatus, error) {
+	return jobStatus{Concept: "organisations", URL: "http://localhost:8080/transformers/organisations/", Throttle: 100, Status: "In progress", Done: 150, Count: 1000}, nil
 }
 func (d *dummyService) getJobs() []job {
 	return []job{job{JobID: "job_id"}}
