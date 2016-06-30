@@ -3,8 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Financial-Times/message-queue-go-producer/producer"
-	log "github.com/Sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -14,6 +12,9 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/Financial-Times/message-queue-go-producer/producer"
+	log "github.com/Sirupsen/logrus"
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
@@ -78,6 +79,10 @@ func (s *publishService) getJobs() []job {
 		jobs = append(jobs, job{JobID: k})
 	}
 	s.mutex.RUnlock()
+
+	if jobs == nil {
+		return []job{} // ensure we return an empty array instead of null
+	}
 
 	return jobs
 }
