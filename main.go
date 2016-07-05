@@ -52,7 +52,7 @@ func main() {
 			log.Fatalf("Invalid transformer URL: %v (%v)", *transAddr, err)
 		}
 		s := newPublishService(addr, messageProducer)
-		h := handler{service: s, health: health{addr: *proxyAddr, topic: *topic}}
+		h := handler{service: &s, health: health{addr: *proxyAddr, topic: *topic}}
 		serve(*port, h)
 	}
 	app.Run(os.Args)
@@ -96,7 +96,7 @@ type jobStatus struct {
 }
 
 type handler struct {
-	service publishService
+	service pubService
 	health  health
 }
 
@@ -104,8 +104,9 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 	var jr createJobRequest
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&jr); err != nil {
-		log.Errorf("Invalid payload: (%v)", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		err := fmt.Sprintf("Invalid payload: (%v)", err)
+		log.Errorf(err)
+		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
 	if jr.Concept == "" {
@@ -124,12 +125,14 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Invalid url: %v (%v)", jr.URL, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	if jr.Throttle < 1 {
 		err := fmt.Sprintf("Invalid throttle: %v", jr.Throttle)
 		log.Errorf(err)
 		http.Error(w, err, http.StatusBadRequest)
+		return
 	}
 
 	id := h.service.newJob(jr.Concept, u, jr.Authorization, jr.Throttle)
@@ -138,7 +141,6 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 	if err := enc.Encode(job{JobID: id}); err != nil {
 		log.Errorf("Error on json encoding=%v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
 }
 
@@ -146,6 +148,7 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 	status, _ := h.service.jobStatus(id)
+	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(status); err != nil {
 		log.Errorf("Error on json encoding=%v\n", err)
@@ -155,6 +158,7 @@ func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) listJobs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(h.service.getJobs()); err != nil {
 		log.Errorf("Error on json encoding=%v\n", err)

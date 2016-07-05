@@ -30,6 +30,12 @@ var httpClient = &http.Client{
 	},
 }
 
+type pubService interface {
+	newJob(concept string, baseURL *url.URL, authorization string, throttle int) string
+	jobStatus(jobID string) (jobStatus, error)
+	getJobs() []job
+}
+
 type publishService struct {
 	transAddr *url.URL
 	producer  producer.MessageProducer
@@ -63,9 +69,9 @@ func (s *publishService) newJob(concept string, baseURL *url.URL, authorization 
 	return jobID
 }
 
-func (s *publishService) jobStatus(jobID string) (*jobStatus, error) {
+func (s *publishService) jobStatus(jobID string) (jobStatus, error) {
 	s.mutex.RLock()
-	job := s.jobs[jobID]
+	job := *s.jobs[jobID]
 	s.mutex.RUnlock()
 
 	return job, nil
@@ -91,12 +97,11 @@ func (s *publishService) publishConcepts(jobID string, conceptType string, baseU
 	ticker := time.NewTicker(time.Second / time.Duration(throttle))
 
 	concepts := make(chan concept, 128)
-	errors := make(chan error)
+	errors := make(chan error, 1)
 
 	go func() {
 		fetchAll(baseURL, authorization, concepts, errors, ticker)
 		close(concepts)
-		close(errors)
 	}()
 
 	s.mutex.RLock()
@@ -120,7 +125,6 @@ func (s *publishService) publishConcepts(jobID string, conceptType string, baseU
 				s.jobs[jobID].Done = i
 				s.mutex.Unlock()
 			}
-
 		}
 	}
 	s.mutex.Lock()
@@ -163,8 +167,11 @@ func fetchIDList(baseURL *url.URL, authorization string, ids chan<- string, erro
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		errors <- fmt.Errorf("Could not get /__ids from: %v (%v)", baseURL, err)
-		return
+		select {
+		case errors <- fmt.Errorf("Could not get /__ids from: %v (%v)", baseURL, err):
+		default:
+			return
+		}
 	}
 	defer func() {
 		io.Copy(ioutil.Discard, resp.Body)
@@ -172,9 +179,11 @@ func fetchIDList(baseURL *url.URL, authorization string, ids chan<- string, erro
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Println("Could not get /__ids")
-		errors <- fmt.Errorf("Could not get /__ids from %v. Returned %v", baseURL, resp.StatusCode)
-		return
+		select {
+		case errors <- fmt.Errorf("Could not get /__ids from %v. Returned %v", baseURL, resp.StatusCode):
+		default:
+			return
+		}
 	}
 
 	type listEntry struct {
@@ -189,9 +198,13 @@ func fetchIDList(baseURL *url.URL, authorization string, ids chan<- string, erro
 			if err == io.EOF {
 				break
 			}
-			errors <- fmt.Errorf("Error parsing /__ids response: %v (%v)", baseURL, err)
-			return
+			select {
+			case errors <- fmt.Errorf("Error parsing /__ids response: %v (%v)", baseURL, err):
+			default:
+				return
+			}
 		}
+
 		ids <- le.ID
 	}
 	close(ids)
@@ -206,23 +219,27 @@ func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- conce
 		}
 		resp, err := httpClient.Do(req)
 		if err != nil {
-			errors <- fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err)
+			select {
+			case errors <- fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err):
+			default:
+			}
 			return
 		}
-		defer func() {
-			io.Copy(ioutil.Discard, resp.Body)
-			resp.Body.Close()
-		}()
-
 		if resp.StatusCode != http.StatusOK {
-			errors <- fmt.Errorf("Could not get concept %v from %v. Returned %v", id, baseURL, resp.StatusCode)
-			return
+			select {
+			case errors <- fmt.Errorf("Could not get concept %v from %v. Returned %v", id, baseURL, resp.StatusCode):
+			default:
+				return
+			}
 		}
 		data, err := ioutil.ReadAll(resp.Body)
-
+		resp.Body.Close()
 		if err != nil {
-			errors <- fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err)
-			return
+			select {
+			case errors <- fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err):
+			default:
+				return
+			}
 		}
 		concepts <- concept{id: id, payload: string(data)}
 	}
