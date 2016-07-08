@@ -39,15 +39,19 @@ url: url to use to get the transformed concept
 * can either be absolute of relative - for relative the base url is TRANSFORMER_ADDR
 * {url}/__ids that lists the identities of the resources in the form '{"id":"abc"}\n{"id":"123"}'
 * {url}/{uid} that returns the transformed concept in UPP json format
-* {url}/__count returns the number of concepts - optional
+* {url}/__count returns the number of concepts
+ids: list if ids to publish - if the list is not empty ids will not be looked up via __ids endpoint on the transformer and only the uuids from the list will be published- optional  
 
 throttle: no of req/s when calling the transformers to get transformed content  
 authorization: authorization credentials if necessary - optional
 
 
 Example:
-`curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","url": "http://localhost:8080/transformers/organisations/", "throttle": 100, "authorization": "Basic base64user:pass"}'`
-`{"jobId":"job_sMxULvEpjw"}`
+`curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","url": "http://localhost:8080/transformers/organisations/", "throttle": 100, "authorization": "Basic base64user:pass"}'`  
+`{"jobId":"job_sMxULvEpjw"}`  
+   
+`curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","ids":["uuid1","uuid2"],"url": "http://localhost:8080/transformers/organisations/", "throttle": 100, "authorization": "Basic base64user:pass"}'`
+`{"jobId":"job_sMxULvEpjw"}`   
 
 #### GET
 Gets all the jobs:

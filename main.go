@@ -76,10 +76,11 @@ func serve(port string, h handler) {
 }
 
 type createJobRequest struct {
-	Concept       string `json:"concept"`
-	URL           string `json:"url"`
-	Throttle      int    `json:"throttle"`
-	Authorization string `json:"authorization"`
+	Concept       string   `json:"concept"`
+	URL           string   `json:"url"`
+	Throttle      int      `json:"throttle"`
+	Authorization string   `json:"authorization"`
+	IDS           []string `json:"ids"`
 }
 
 type job struct {
@@ -87,12 +88,13 @@ type job struct {
 }
 
 type jobStatus struct {
-	Concept  string `json:"concept"`
-	URL      string `json:"url"`
-	Throttle int    `json:"throttle"`
-	Count    int    `json:"count"`
-	Done     int    `json:"done"`
-	Status   string `json:"status"`
+	Concept  string   `json:"concept"`
+	IDS      []string `json:"ids,omitempty"`
+	URL      string   `json:"url"`
+	Throttle int      `json:"throttle"`
+	Count    int      `json:"count"`
+	Done     int      `json:"done"`
+	Status   string   `json:"status"`
 }
 
 type handler struct {
@@ -135,7 +137,7 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := h.service.newJob(jr.Concept, u, jr.Authorization, jr.Throttle)
+	id := h.service.newJob(jr.Concept, jr.IDS, u, jr.Authorization, jr.Throttle)
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(job{JobID: id}); err != nil {

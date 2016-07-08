@@ -32,7 +32,7 @@ var httpClient = &http.Client{
 }
 
 type pubService interface {
-	newJob(concept string, baseURL *url.URL, authorization string, throttle int) string
+	newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) string
 	jobStatus(jobID string) (jobStatus, error)
 	getJobs() []job
 }
@@ -48,24 +48,24 @@ func newPublishService(transAddr *url.URL, producer producer.MessageProducer) pu
 	return publishService{transAddr: transAddr, producer: producer, mutex: &sync.RWMutex{}, jobs: make(map[string]*jobStatus)}
 }
 
-func (s *publishService) newJob(concept string, baseURL *url.URL, authorization string, throttle int) string {
+func (s *publishService) newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) string {
 	if baseURL.Host == "" {
 		baseURL.Scheme = s.transAddr.Scheme
 		baseURL.Host = s.transAddr.Host
 	}
 	jobID := "job_" + generateID()
-	c, err := getCount(baseURL, authorization)
+	c, err := getCount(ids, baseURL, authorization)
 	if err != nil {
 		log.Errorf("Could not determine count: (%v)", err)
 		s.mutex.Lock()
-		s.jobs[jobID] = &jobStatus{Concept: concept, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "Failed"}
+		s.jobs[jobID] = &jobStatus{Concept: concept, IDS: ids, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "Failed"}
 		s.mutex.Unlock()
 		return jobID
 	}
 	s.mutex.Lock()
-	s.jobs[jobID] = &jobStatus{Concept: concept, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "In progress"}
+	s.jobs[jobID] = &jobStatus{Concept: concept, IDS: ids, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "In progress"}
 	s.mutex.Unlock()
-	go s.publishConcepts(jobID, concept, baseURL, authorization, throttle)
+	go s.publishConcepts(jobID, concept, ids, baseURL, authorization, throttle)
 
 	return jobID
 }
@@ -98,17 +98,16 @@ type concept struct {
 	payload string
 }
 
-func (s *publishService) publishConcepts(jobID string, conceptType string, baseURL *url.URL, authorization string, throttle int) {
+func (s *publishService) publishConcepts(jobID string, conceptType string, ids []string, baseURL *url.URL, authorization string, throttle int) {
 	ticker := time.NewTicker(time.Second / time.Duration(throttle))
 
 	concepts := make(chan concept, 128)
 	errors := make(chan error, 1)
 
 	go func() {
-		fetchAll(baseURL, authorization, concepts, errors, ticker)
+		fetchAll(ids, baseURL, authorization, concepts, errors, ticker)
 		close(concepts)
 	}()
-
 	s.mutex.RLock()
 	count := s.jobs[jobID].Count
 	s.mutex.RUnlock()
@@ -146,9 +145,19 @@ func (s *publishService) handleErr(jobID string, err error) {
 	s.mutex.Unlock()
 }
 
-func fetchAll(baseURL *url.URL, authorization string, concepts chan<- concept, errors chan<- error, ticker *time.Ticker) {
-	ids := make(chan string, 128)
-	go fetchIDList(baseURL, authorization, ids, errors)
+func fetchAll(ids []string, baseURL *url.URL, authorization string, concepts chan<- concept, errors chan<- error, ticker *time.Ticker) {
+	idsChan := make(chan string, 128)
+	if len(ids) > 0 {
+		go func() {
+			for _, id := range ids {
+				idsChan <- id
+			}
+			close(idsChan)
+		}()
+
+	} else {
+		go fetchIDList(baseURL, authorization, idsChan, errors)
+	}
 
 	readers := 100
 
@@ -157,7 +166,7 @@ func fetchAll(baseURL *url.URL, authorization string, concepts chan<- concept, e
 	for i := 0; i < readers; i++ {
 		readWg.Add(1)
 		go func(i int) {
-			fetchConcepts(baseURL, authorization, concepts, ids, errors, ticker)
+			fetchConcepts(baseURL, authorization, concepts, idsChan, errors, ticker)
 			readWg.Done()
 		}(i)
 	}
@@ -250,7 +259,10 @@ func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- conce
 	}
 }
 
-func getCount(baseURL *url.URL, authorization string) (int, error) {
+func getCount(ids []string, baseURL *url.URL, authorization string) (int, error) {
+	if len(ids) > 0 {
+		return len(ids), nil
+	}
 	req, _ := http.NewRequest("GET", baseURL.String()+"__count", nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
