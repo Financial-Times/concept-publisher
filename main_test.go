@@ -70,7 +70,6 @@ type dummyService struct {
 }
 
 func (d *dummyService) newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) string {
-	fmt.Println(ids)
 	return "job_id"
 }
 func (d *dummyService) jobStatus(jobID string) (jobStatus, error) {
