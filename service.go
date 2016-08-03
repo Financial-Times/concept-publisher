@@ -60,11 +60,13 @@ func (s *publishService) newJob(concept string, ids []string, baseURL *url.URL, 
 		s.mutex.Lock()
 		s.jobs[jobID] = &jobStatus{Concept: concept, IDS: ids, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "Failed"}
 		s.mutex.Unlock()
+		log.Errorf("Failed: %s", s.jobs[jobID])
 		return jobID
 	}
 	s.mutex.Lock()
 	s.jobs[jobID] = &jobStatus{Concept: concept, IDS: ids, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "In progress"}
 	s.mutex.Unlock()
+	log.Infof("ConceptPublish: In progress %s", s.jobs[jobID])
 	go s.publishConcepts(jobID, concept, ids, baseURL, authorization, throttle)
 
 	return jobID
@@ -135,6 +137,7 @@ func (s *publishService) publishConcepts(jobID string, conceptType string, ids [
 	s.jobs[jobID].Status = "Completed"
 	s.jobs[jobID].Done = count
 	s.mutex.Unlock()
+	log.Infof("ConceptPublish: Completed %s", s.jobs[jobID])
 	return
 }
 

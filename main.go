@@ -8,15 +8,16 @@ import (
 
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net/url"
+
 	fthealth "github.com/Financial-Times/go-fthealth"
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
-	"io"
-	"io/ioutil"
-	"net/url"
 )
 
 func main() {
@@ -83,6 +84,10 @@ type createJobRequest struct {
 	IDS           []string `json:"ids"`
 }
 
+func (j createJobRequest) String() string {
+	return fmt.Sprintf("Concept=%s URL=%s Throttle=%d", j.Concept, j.URL, j.Throttle)
+}
+
 type job struct {
 	JobID string `json:"jobId"`
 }
@@ -95,6 +100,10 @@ type jobStatus struct {
 	Count    int      `json:"count"`
 	Done     int      `json:"done"`
 	Status   string   `json:"status"`
+}
+
+func (j jobStatus) String() string {
+	return fmt.Sprintf("Concept=%s URL=%s Count=%d Throttle=%d Status=%s", j.Concept, j.URL, j.Count, j.Throttle, j.Status)
 }
 
 type handler struct {
@@ -111,6 +120,7 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
+	log.Infof("ConceptPublish: Request received %v", jr)
 	if jr.Concept == "" {
 		err := "Concept empty"
 		log.Errorf(err)
