@@ -15,6 +15,7 @@ import (
 
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
+	"errors"
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
@@ -74,6 +75,9 @@ func (s *publishService) newJob(concept string, ids []string, baseURL *url.URL, 
 
 func (s *publishService) jobStatus(jobID string) (jobStatus, error) {
 	s.mutex.RLock()
+	if len(s.jobs) == 0 {
+		return jobStatus{}, errors.New("No job with id " + jobID + " exists")
+	}
 	job := *s.jobs[jobID]
 	s.mutex.RUnlock()
 
