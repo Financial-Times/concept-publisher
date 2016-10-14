@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"errors"
 )
 
 const (
@@ -37,6 +38,7 @@ func TestHandlers(t *testing.T) {
 		{"Bad request - create new job invalid payload", newRequest("POST", "/jobs", CreateJobInvalidPayload), http.StatusBadRequest, "text/plain; charset=utf-8", "Invalid payload: (json: cannot unmarshal string into Go value of type main.createJobRequest)\n"},
 		{"Success - get job", newRequest("GET", "/jobs/jobID", ""), http.StatusOK, "application/json", "{\"concept\":\"organisations\",\"url\":\"http://localhost:8080/transformers/organisations/\",\"throttle\":100,\"count\":1000,\"done\":150,\"status\":\"In progress\"}\n"},
 		{"Success - get job with ids", newRequest("GET", "/jobs/jobIDWithIDS", ""), http.StatusOK, "application/json", "{\"concept\":\"organisations\",\"ids\":[\"uuid1\",\"uuid2\"],\"url\":\"http://localhost:8080/transformers/organisations/\",\"throttle\":100,\"count\":1000,\"done\":150,\"status\":\"In progress\"}\n"},
+		{"Bad request - get job Does Not Exist", newRequest("GET", "/jobs/jobIDDoesNotExist", ""), http.StatusNotFound, "text/plain; charset=utf-8", "Job with id jobIDDoesNotExist does not exist\n"},
 		{"Success - get list jobs", newRequest("GET", "/jobs", ""), http.StatusOK, "application/json", "[{\"jobId\":\"job_id\"}]\n"},
 	}
 
@@ -78,6 +80,10 @@ func (d *dummyService) jobStatus(jobID string) (jobStatus, error) {
 	}
 	if "jobIDWithIDS" == jobID {
 		return jobStatus{Concept: "organisations", URL: "http://localhost:8080/transformers/organisations/", IDS: []string{"uuid1", "uuid2"}, Throttle: 100, Status: "In progress", Done: 150, Count: 1000}, nil
+	}
+	if "jobIDDoesNotExist" == jobID {
+		return jobStatus{}, errors.New("Job with id " + jobID + " does not exist")
+
 	}
 	return jobStatus{}, fmt.Errorf("Invalid id %v", jobID)
 }

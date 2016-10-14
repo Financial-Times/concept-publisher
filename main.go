@@ -159,7 +159,12 @@ func (h *handler) createJob(w http.ResponseWriter, r *http.Request) {
 func (h *handler) status(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	status, _ := h.service.jobStatus(id)
+	status, err := h.service.jobStatus(id)
+	if err != nil {
+		log.Errorf("Error returning job. %v\n", err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(status); err != nil {
