@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -19,18 +18,7 @@ import (
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
-
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-var httpClient = &http.Client{
-	Transport: &http.Transport{
-		MaxIdleConnsPerHost: 128,
-		Dial: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).Dial,
-	},
-}
 
 type pubService interface {
 	newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) string
@@ -39,23 +27,30 @@ type pubService interface {
 }
 
 type publishService struct {
-	transAddr *url.URL
-	producer  producer.MessageProducer
-	mutex     *sync.RWMutex //protects jobs
-	jobs      map[string]*jobStatus
+	clusterAddress *url.URL
+	producer       producer.MessageProducer
+	mutex          *sync.RWMutex //protects jobs
+	jobs           map[string]*jobStatus
+	httpClient     *http.Client
 }
 
-func newPublishService(transAddr *url.URL, producer producer.MessageProducer) publishService {
-	return publishService{transAddr: transAddr, producer: producer, mutex: &sync.RWMutex{}, jobs: make(map[string]*jobStatus)}
+func newPublishService(clusterAddress *url.URL, producer producer.MessageProducer, httpClient *http.Client) publishService {
+	return publishService{
+		clusterAddress: clusterAddress,
+		producer:       producer,
+		mutex:          &sync.RWMutex{},
+		jobs: 	        make(map[string]*jobStatus),
+		httpClient:     httpClient,
+	}
 }
 
 func (s *publishService) newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) string {
 	if baseURL.Host == "" {
-		baseURL.Scheme = s.transAddr.Scheme
-		baseURL.Host = s.transAddr.Host
+		baseURL.Scheme = s.clusterAddress.Scheme
+		baseURL.Host = s.clusterAddress.Host
 	}
 	jobID := "job_" + generateID()
-	c, err := getCount(ids, baseURL, authorization)
+	c, err := s.getCount(ids, baseURL, authorization)
 	if err != nil {
 		log.Errorf("Could not determine count: (%v)", err)
 		s.mutex.Lock()
@@ -80,7 +75,6 @@ func (s *publishService) jobStatus(jobID string) (jobStatus, error) {
 	}
 	job := *s.jobs[jobID]
 	s.mutex.RUnlock()
-
 	return job, nil
 }
 
@@ -95,7 +89,6 @@ func (s *publishService) getJobs() []job {
 	if jobs == nil {
 		return []job{} // ensure we return an empty array instead of null
 	}
-
 	return jobs
 }
 
@@ -111,7 +104,7 @@ func (s *publishService) publishConcepts(jobID string, conceptType string, ids [
 	errors := make(chan error, 1)
 
 	go func() {
-		fetchAll(ids, baseURL, authorization, concepts, errors, ticker)
+		s.fetchAll(ids, baseURL, authorization, concepts, errors, ticker)
 		close(concepts)
 	}()
 	s.mutex.RLock()
@@ -152,7 +145,7 @@ func (s *publishService) handleErr(jobID string, err error) {
 	s.mutex.Unlock()
 }
 
-func fetchAll(ids []string, baseURL *url.URL, authorization string, concepts chan<- concept, errors chan<- error, ticker *time.Ticker) {
+func (s *publishService) fetchAll(ids []string, baseURL *url.URL, authorization string, concepts chan<- concept, errors chan<- error, ticker *time.Ticker) {
 	idsChan := make(chan string, 128)
 	if len(ids) > 0 {
 		go func() {
@@ -163,30 +156,26 @@ func fetchAll(ids []string, baseURL *url.URL, authorization string, concepts cha
 		}()
 
 	} else {
-		go fetchIDList(baseURL, authorization, idsChan, errors)
+		go s.fetchIDList(baseURL, authorization, idsChan, errors)
 	}
-
 	readers := 100
-
 	readWg := sync.WaitGroup{}
-
 	for i := 0; i < readers; i++ {
 		readWg.Add(1)
 		go func(i int) {
-			fetchConcepts(baseURL, authorization, concepts, idsChan, errors, ticker)
+			s.fetchConcepts(baseURL, authorization, concepts, idsChan, errors, ticker)
 			readWg.Done()
 		}(i)
 	}
-
 	readWg.Wait()
 }
 
-func fetchIDList(baseURL *url.URL, authorization string, ids chan<- string, errors chan<- error) {
+func (s *publishService) fetchIDList(baseURL *url.URL, authorization string, ids chan<- string, errors chan<- error) {
 	req, _ := http.NewRequest("GET", baseURL.String()+"__ids", nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		select {
 		case errors <- fmt.Errorf("Could not get /__ids from: %v (%v)", baseURL, err):
@@ -231,14 +220,14 @@ func fetchIDList(baseURL *url.URL, authorization string, ids chan<- string, erro
 	close(ids)
 }
 
-func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- concept, ids <-chan string, errors chan<- error, ticker *time.Ticker) {
+func (s *publishService) fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- concept, ids <-chan string, errors chan<- error, ticker *time.Ticker) {
 	for id := range ids {
 		<-ticker.C
 		req, _ := http.NewRequest("GET", baseURL.String()+id, nil)
 		if authorization != "" {
 			req.Header.Set("Authorization", authorization)
 		}
-		resp, err := httpClient.Do(req)
+		resp, err := s.httpClient.Do(req)
 		if err != nil {
 			select {
 			case errors <- fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err):
@@ -266,7 +255,7 @@ func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- conce
 	}
 }
 
-func getCount(ids []string, baseURL *url.URL, authorization string) (int, error) {
+func (s *publishService) getCount(ids []string, baseURL *url.URL, authorization string) (int, error) {
 	if len(ids) > 0 {
 		return len(ids), nil
 	}
@@ -274,7 +263,7 @@ func getCount(ids []string, baseURL *url.URL, authorization string) (int, error)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return -1, fmt.Errorf("Could not connect to %v. Error (%v)", baseURL, err)
 	}
