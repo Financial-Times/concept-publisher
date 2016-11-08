@@ -26,24 +26,6 @@ func (j createJobRequest) String() string {
 	return fmt.Sprintf("Concept=%s URL=%s Throttle=%d", j.Concept, j.URL, j.Throttle)
 }
 
-type job struct {
-	JobID string `json:"jobId"`
-}
-
-type jobStatus struct {
-	Concept  string   `json:"concept"`
-	IDS      []string `json:"ids,omitempty"`
-	URL      string   `json:"url"`
-	Throttle int      `json:"throttle"`
-	Count    int      `json:"count"`
-	Done     int      `json:"done"`
-	Status   string   `json:"status"`
-}
-
-func (j jobStatus) String() string {
-	return fmt.Sprintf("Concept=%s URL=%s Count=%d Throttle=%d Status=%s", j.Concept, j.URL, j.Count, j.Throttle, j.Status)
-}
-
 func (h *publisher) createJob(w http.ResponseWriter, r *http.Request) {
 	var jr createJobRequest
 	dec := json.NewDecoder(r.Body)

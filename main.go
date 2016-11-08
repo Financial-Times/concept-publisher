@@ -31,20 +31,20 @@ func main() {
 	topic := app.String(cli.StringOpt{
 		Name:   "destination-topic",
 		Value:  "NativeCmsMetadataPublicationEvents",
-		Desc:   "The topic to write the V1 metadata to",
+		Desc:   "The topic to write the V1 metadata to. (e.g. Concepts)",
 		EnvVar: "TOPIC",
 	})
-	clusterAddress := app.String(cli.StringOpt{
-		Name:   "cluster-address",
+	clusterRouterAddress := app.String(cli.StringOpt{
+		Name:   "cluster-router-address",
 		Value:  "http://ip-172-24-90-237.eu-west-1.compute.internal:8080",
-		Desc:   "The hostname of one machine in the cluster, so that we can access any of the transformers by going to vulcan.",
-		EnvVar: "CLUSTER_ADDRESS",
+		Desc:   "The hostname and port to the router of the cluster, so that we can access any of the transformers by going to vulcan. (e.g. http://ip-172-24-90-237.eu-west-1.compute.internal:8080)",
+		EnvVar: "CLUSTER_ROUTER_ADDRESS",
 	})
 	app.Action = func() {
 		messageProducer := producer.NewMessageProducer(producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic})
-		clusterAddress, err := url.Parse(*clusterAddress)
+		clusterRouterAddress, err := url.Parse(*clusterRouterAddress)
 		if err != nil {
-			log.Fatalf("Invalid transformer URL: %v (%v)", *clusterAddress, err)
+			log.Fatalf("Invalid clusterRouterAddress=%v %v", *clusterRouterAddress, err)
 		}
 		httpClient := &http.Client{
 			Transport: &http.Transport{
@@ -55,11 +55,14 @@ func main() {
 				}).Dial,
 			},
 		}
-		publishService := &newPublishService(clusterAddress, messageProducer, httpClient)
+		publishService := &newPublishService(clusterRouterAddress, messageProducer, httpClient)
 		healthcheckHandler := &newHealthcheck(topic, proxyAddress, httpClient)
 		assignHandlers(*port, publishService, healthcheckHandler)
 	}
-	app.Run(os.Args)
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatalf("Couldn't start up application: %v", err)
+	}
 }
 
 func assignHandlers(port string, publisherHandler *publisher, healthcheckHandler *healthcheck) {

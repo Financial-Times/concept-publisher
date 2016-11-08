@@ -14,82 +14,36 @@ import (
 
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
-	"errors"
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-type pubService interface {
-	newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) string
-	jobStatus(jobID string) (jobStatus, error)
-	getJobs() []job
+type job struct {
+	JobID       string   `json:"jobId"`
+	ConceptType string   `json:"concept"`
+	IDS         []string `json:"ids,omitempty"`
+	URL         url.URL  `json:"url"`
+	Throttle    int      `json:"throttle"`
+	Count       int      `json:"count"`
+	Progress    int      `json:"done"`
+	Status      string   `json:"status"`
 }
 
-type publishService struct {
-	clusterAddress *url.URL
-	producer       producer.MessageProducer
-	mutex          *sync.RWMutex //protects jobs
-	jobs           map[string]*jobStatus
-	httpClient     *http.Client
+func (j job) String() string {
+	return fmt.Sprintf("Concept=%s URL=%s Count=%d Throttle=%d Status=%s", j.ConceptType, j.URL, j.Count, j.Throttle, j.Status)
 }
 
-func newPublishService(clusterAddress *url.URL, producer producer.MessageProducer, httpClient *http.Client) publishService {
-	return publishService{
-		clusterAddress: clusterAddress,
-		producer:       producer,
-		mutex:          &sync.RWMutex{},
-		jobs: 	        make(map[string]*jobStatus),
-		httpClient:     httpClient,
-	}
+type NotFoundError struct {
+	msg string
 }
 
-func (s *publishService) newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) string {
-	if baseURL.Host == "" {
-		baseURL.Scheme = s.clusterAddress.Scheme
-		baseURL.Host = s.clusterAddress.Host
-	}
-	jobID := "job_" + generateID()
-	c, err := s.getCount(ids, baseURL, authorization)
-	if err != nil {
-		log.Errorf("Could not determine count: (%v)", err)
-		s.mutex.Lock()
-		s.jobs[jobID] = &jobStatus{Concept: concept, IDS: ids, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "Failed"}
-		s.mutex.Unlock()
-		log.Errorf("Failed: %s", s.jobs[jobID])
-		return jobID
-	}
-	s.mutex.Lock()
-	s.jobs[jobID] = &jobStatus{Concept: concept, IDS: ids, URL: baseURL.String(), Throttle: throttle, Count: c, Done: 0, Status: "In progress"}
-	s.mutex.Unlock()
-	log.Infof("ConceptPublish: In progress %s", s.jobs[jobID])
-	go s.publishConcepts(jobID, concept, ids, baseURL, authorization, throttle)
-
-	return jobID
+func (e *NotFoundError) Error() string {
+	return e.msg
 }
 
-func (s *publishService) jobStatus(jobID string) (jobStatus, error) {
-	s.mutex.RLock()
-	if len(s.jobs) == 0 {
-		return jobStatus{}, errors.New("No job with id " + jobID + " exists")
-	}
-	job := *s.jobs[jobID]
-	s.mutex.RUnlock()
-	return job, nil
-}
-
-func (s *publishService) getJobs() []job {
-	var jobs []job
-	s.mutex.RLock()
-	for k := range s.jobs {
-		jobs = append(jobs, job{JobID: k})
-	}
-	s.mutex.RUnlock()
-
-	if jobs == nil {
-		return []job{} // ensure we return an empty array instead of null
-	}
-	return jobs
+func newNotFoundError(jobID string) NotFoundError {
+	return NotFoundError{msg: fmt.Sprintf("Job with id=%s not found", jobID)}
 }
 
 type concept struct {
@@ -97,52 +51,124 @@ type concept struct {
 	payload string
 }
 
-func (s *publishService) publishConcepts(jobID string, conceptType string, ids []string, baseURL *url.URL, authorization string, throttle int) {
-	ticker := time.NewTicker(time.Second / time.Duration(throttle))
+type pubService interface {
+	newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) (*job, error)
+	getJob(jobID string) (*job, NotFoundError)
+	getJobStatus(jobID string) (string, NotFoundError)
+	getJobs() []string
+}
 
+type publishService struct {
+	clusterRouterAddress *url.URL
+	producer             producer.MessageProducer
+	mutex                *sync.RWMutex //protects jobs
+	jobs                 map[string]*job
+	httpClient           *http.Client
+}
+
+func newPublishService(clusterRouterAddress *url.URL, producer producer.MessageProducer, httpClient *http.Client) publishService {
+	return publishService{
+		clusterRouterAddress: clusterRouterAddress,
+		producer:             producer,
+		mutex:                &sync.RWMutex{},
+		jobs: 	              make(map[string]*job),
+		httpClient:           httpClient,
+	}
+}
+
+func (s *publishService) newJob(conceptType string, ids []string, baseURL *url.URL, authorization string, throttle int) (job, error) {
+	if baseURL.Host == "" {
+		baseURL.Scheme = s.clusterRouterAddress.Scheme
+		baseURL.Host = s.clusterRouterAddress.Host
+	}
+	err := s.reload(baseURL, authorization)
+	if err != nil {
+		log.InfoLevel("Couldn't reload concept=%s %v", conceptType, err)
+	}
+	count, err := s.getCount(ids, baseURL, authorization)
+	if err != nil {
+		return nil, fmt.Errorf("Could not determine count for concept=%s %v", conceptType, err)
+	}
+	s.mutex.Lock()
+	jobID := "job_" + generateID()
+	theJob := &job{
+		ConceptType: conceptType,
+		IDS: ids,
+		URL: baseURL,
+		Throttle: throttle,
+		Count: count,
+		Progress: 0,
+		Status: "In progress",
+	}
+	s.jobs[jobID] = theJob
+	s.mutex.Unlock()
+	log.Infof("Created job with jobID=%s", theJob.JobID)
+	go s.runJob(theJob, authorization)
+	return theJob
+}
+
+func (s *publishService) getJob(jobID string) (*job, NotFoundError) {
+	s.mutex.RLock()
+	job, ok := s.jobs[jobID]
+	if !ok {
+		return nil, newNotFoundError(jobID)
+	}
+	s.mutex.RUnlock()
+	return job, nil
+}
+
+func (s *publishService) getJobStatus(jobID string) (string, NotFoundError) {
+	job, err := s.getJob(jobID)
+	if err != nil {
+		return nil, err
+	}
+	return job.Status, nil
+}
+
+func (s *publishService) getJobs() []string {
+	jobIds := []string{}
+	s.mutex.RLock()
+	for _, j := range s.jobs {
+		jobIds = append(jobIds, j.JobID)
+	}
+	s.mutex.RUnlock()
+	return jobIds
+}
+
+func (s *publishService) runJob(theJob *job, authorization string) {
+	ticker := time.NewTicker(time.Second / time.Duration(job.Throttle))
 	concepts := make(chan concept, 128)
 	errors := make(chan error, 1)
-
 	go func() {
-		s.fetchAll(ids, baseURL, authorization, concepts, errors, ticker)
+		s.fetchAll(job.IDS, job.URL, authorization, concepts, errors, ticker)
 		close(concepts)
 	}()
-	s.mutex.RLock()
-	count := s.jobs[jobID].Count
-	s.mutex.RUnlock()
-	th := 1000
-	for i := 0; i < count; i++ {
+	count := theJob.Count
+	for job.Progress = 0; job.Progress < count; job.Progress++ {
 		select {
 		case err := <-errors:
-			s.handleErr(jobID, err)
+			s.handleErr(theJob, err)
 			return
 		case c := <-concepts:
-			message := producer.Message{Headers: buildHeader(c.id, conceptType), Body: c.payload}
+			message := producer.Message{
+				Headers: buildHeader(c.id, job.ConceptType),
+				Body: c.payload,
+			}
 			err := s.producer.SendMessage(c.id, message)
 			if err != nil {
-				s.handleErr(jobID, err)
+				s.handleErr(theJob, err)
 				return
-			}
-			if i%th == 0 {
-				s.mutex.Lock()
-				s.jobs[jobID].Done = i
-				s.mutex.Unlock()
 			}
 		}
 	}
-	s.mutex.Lock()
-	s.jobs[jobID].Status = "Completed"
-	s.jobs[jobID].Done = count
-	s.mutex.Unlock()
-	log.Infof("ConceptPublish: Completed %s", s.jobs[jobID])
+	job.Status = "Completed"
+	log.Infof("Completed job with jobID=%s", theJob.JobID)
 	return
 }
 
-func (s *publishService) handleErr(jobID string, err error) {
-	log.Errorf("Error with job: %v (%v)", jobID, err)
-	s.mutex.Lock()
-	s.jobs[jobID].Status = "Failed"
-	s.mutex.Unlock()
+func (s *publishService) handleErr(theJob *job, err error) {
+	log.Errorf("Error with jobID=%v %v", job.JobID, err)
+	theJob.Status = "Failed"
 }
 
 func (s *publishService) fetchAll(ids []string, baseURL *url.URL, authorization string, concepts chan<- concept, errors chan<- error, ticker *time.Ticker) {
@@ -287,10 +313,29 @@ func (s *publishService) getCount(ids []string, baseURL *url.URL, authorization 
 
 }
 
-func buildHeader(uuid string, concept string) map[string]string {
+func (s *publishService) reload(baseURL *url.URL, authorization string) error {
+	req, _ := http.NewRequest("POST", baseURL.String()+"__reload", nil)
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("Could not connect to url=%v to reload concepts: %v", baseURL, err)
+	}
+	defer func() {
+		io.Copy(ioutil.Discard, resp.Body)
+		resp.Body.Close()
+	}()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("status=%d when reloading concepts at url=%v", resp.StatusCode, baseURL)
+	}
+	return nil
+}
+
+func buildHeader(uuid string, conceptType string) map[string]string {
 	return map[string]string{
 		"Message-Id":        uuid,
-		"Message-Type":      concept,
+		"Message-Type":      conceptType,
 		"Content-Type":      "application/json",
 		"X-Request-Id":      "tid_" + generateID(),
 		"Origin-System-Id":  "http://cmdb.ft.com/systems/upp",
