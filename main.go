@@ -12,6 +12,7 @@ import (
 	"github.com/jawher/mow.cli"
 	"net"
 	"time"
+	"strconv"
 )
 
 func main() {
@@ -75,7 +76,7 @@ func assignHandlers(port int, publisherHandler *publishHandler, healthcheckHandl
 	m.HandleFunc("/__health", healthcheckHandler.health())
 	m.HandleFunc("/__gtg", healthcheckHandler.gtg)
 	log.Infof("Listening on [%v].\n", port)
-	err := http.ListenAndServe(":"+string(port), nil)
+	err := http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	if err != nil {
 		log.Printf("Web server failed: [%v].\n", err)
 	}
