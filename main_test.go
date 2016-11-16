@@ -61,7 +61,7 @@ func newRequest(method, url string, body string) *http.Request {
 
 func router(s pubService) *mux.Router {
 	m := mux.NewRouter()
-	h := &publisher{service: s, health: healthcheck{}}
+	h := &publishHandler{service: s, health: healthcheckHandler{}}
 	m.HandleFunc("/jobs", h.createJob).Methods("POST")
 	m.HandleFunc("/jobs", h.listJobs).Methods("GET")
 	m.HandleFunc("/jobs/{id}", h.status).Methods("GET")

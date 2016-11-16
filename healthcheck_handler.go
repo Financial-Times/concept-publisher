@@ -11,31 +11,31 @@ import (
 	"errors"
 )
 
-type healthcheck struct {
+type healthcheckHandler struct {
 	kafkaPAddr string
 	topic      string
 	httpClient *http.Client
 }
 
-func newHealthcheck(topic string, kafkaPAddr string, httpClient *http.Client) healthcheck {
-	return healthcheck{
+func newHealthcheckHandler(topic string, kafkaPAddr string, httpClient *http.Client) healthcheckHandler {
+	return healthcheckHandler{
 		kafkaPAddr: kafkaPAddr,
 		topic:      topic,
 		httpClient: httpClient,
 	}
 }
 
-func (h *healthcheck) health() func(w http.ResponseWriter, r *http.Request) {
+func (h *healthcheckHandler) health() func(w http.ResponseWriter, r *http.Request) {
 	return fthealth.Handler("Dependent services healthcheck", "Services: kafka-rest-proxy", h.canConnectToProxyHealthcheck())
 }
 
-func (h *healthcheck) gtg(w http.ResponseWriter, r *http.Request) {
+func (h *healthcheckHandler) gtg(w http.ResponseWriter, r *http.Request) {
 	if err := h.checkCanConnectToProxy(); err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 }
 
-func (h *healthcheck) canConnectToProxyHealthcheck() fthealth.Check {
+func (h *healthcheckHandler) canConnectToProxyHealthcheck() fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Forwarding messages to kafka-proxy in coco won't work. Concept publishing won't work.",
 		Name:             "Forward messages to kafka-proxy.",
@@ -46,8 +46,8 @@ func (h *healthcheck) canConnectToProxyHealthcheck() fthealth.Check {
 	}
 }
 
-func (h *healthcheck) checkCanConnectToProxy() error {
-	body, err := checkProxyConnection(h.kafkaPAddr)
+func (h *healthcheckHandler) checkCanConnectToProxy() error {
+	body, err := h.checkProxyConnection()
 	if err != nil {
 		log.Errorf("Healthcheck: Error reading request body: %v", err.Error())
 		return err
@@ -55,14 +55,14 @@ func (h *healthcheck) checkCanConnectToProxy() error {
 	return checkIfTopicIsPresent(body, h.topic)
 }
 
-func checkProxyConnection(address string) (body []byte, err error) {
+func (h *healthcheckHandler) checkProxyConnection() (body []byte, err error) {
 	//check if proxy is running and topic is present
-	req, err := http.NewRequest("GET", address+"/topics", nil)
+	req, err := http.NewRequest("GET", h.kafkaPAddr+"/topics", nil)
 	if err != nil {
 		log.Errorf("Error creating new kafka-proxy healthcheck request: %v", err.Error())
 		return nil, err
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		log.Errorf("Healthcheck: Error executing kafka-proxy GET request: %v", err.Error())
 		return nil, err

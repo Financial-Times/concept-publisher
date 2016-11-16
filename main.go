@@ -16,9 +16,9 @@ import (
 
 func main() {
 	app := cli.App("concept-publisher", "Retrieves concepts and puts them on a queue")
-	port := app.String(cli.StringOpt{
+	port := app.Int(cli.IntOpt{
 		Name:   "port",
-		Value:  "8080",
+		Value:  8080,
 		Desc:   "Port to listen on",
 		EnvVar: "PORT",
 	})
@@ -55,9 +55,10 @@ func main() {
 				}).Dial,
 			},
 		}
-		publishService := &newPublishService(clusterRouterAddress, messageProducer, httpClient)
-		healthcheckHandler := &newHealthcheck(topic, proxyAddress, httpClient)
-		assignHandlers(*port, publishService, healthcheckHandler)
+		publishService := newPublishService(clusterRouterAddress, messageProducer, httpClient)
+		healthcheckHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
+		publishHandler := newPublishHandler(&publishService)
+		assignHandlers(*port, &publishHandler, &healthcheckHandler)
 	}
 	err := app.Run(os.Args)
 	if err != nil {
@@ -65,16 +66,16 @@ func main() {
 	}
 }
 
-func assignHandlers(port string, publisherHandler *publisher, healthcheckHandler *healthcheck) {
+func assignHandlers(port int, publisherHandler *publishHandler, healthcheckHandler *healthcheckHandler) {
 	m := mux.NewRouter()
 	http.Handle("/", handlers.CombinedLoggingHandler(os.Stdout, m))
 	m.HandleFunc("/jobs", publisherHandler.createJob).Methods("POST")
 	m.HandleFunc("/jobs", publisherHandler.listJobs).Methods("GET")
 	m.HandleFunc("/jobs/{id}", publisherHandler.status).Methods("GET")
-	m.HandleFunc("/__health", healthcheckHandler.health)
+	m.HandleFunc("/__health", healthcheckHandler.health())
 	m.HandleFunc("/__gtg", healthcheckHandler.gtg)
 	log.Infof("Listening on [%v].\n", port)
-	err := http.ListenAndServe(":"+port, nil)
+	err := http.ListenAndServe(":"+string(port), nil)
 	if err != nil {
 		log.Printf("Web server failed: [%v].\n", err)
 	}

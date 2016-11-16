@@ -9,9 +9,9 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type publisher struct {
-	service pubService
-	health  healthcheck
+type publishHandler struct {
+	publishService *publishService
+	//health  healthcheckHandler
 }
 
 type createJobRequest struct {
@@ -22,11 +22,15 @@ type createJobRequest struct {
 	IDS           []string `json:"ids"`
 }
 
+func newPublishHandler(publishService *publishService) publishHandler {
+	return publishHandler{publishService: publishService}
+}
+
 func (j createJobRequest) String() string {
 	return fmt.Sprintf("Concept=%s URL=%s Throttle=%d", j.Concept, j.URL, j.Throttle)
 }
 
-func (h *publisher) createJob(w http.ResponseWriter, r *http.Request) {
+func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 	var jr createJobRequest
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&jr); err != nil {
@@ -54,27 +58,26 @@ func (h *publisher) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
 	if jr.Throttle < 1 {
 		err := fmt.Sprintf("Invalid throttle: %v", jr.Throttle)
 		log.Errorf(err)
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
-
-	id := h.service.newJob(jr.Concept, jr.IDS, u, jr.Authorization, jr.Throttle)
+	theJob, err := h.publishService.newJob(jr.Concept, jr.IDS, u, jr.Authorization, jr.Throttle)
+	go h.publishService.runJob(theJob, jr.Authorization)
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(job{JobID: id}); err != nil {
+	if err := enc.Encode(theJob.JobID); err != nil {
 		log.Errorf("Error on json encoding=%v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func (h *publisher) status(w http.ResponseWriter, r *http.Request) {
+func (h *publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	status, err := h.service.jobStatus(id)
+	status, err := h.publishService.getJobStatus(id)
 	if err != nil {
 		log.Errorf("Error returning job. %v\n", err)
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -89,10 +92,10 @@ func (h *publisher) status(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *publisher) listJobs(w http.ResponseWriter, r *http.Request) {
+func (h *publishHandler) listJobs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(h.service.getJobs()); err != nil {
+	if err := enc.Encode(h.publishService.getJobIds()); err != nil {
 		log.Errorf("Error on json encoding=%v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
