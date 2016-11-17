@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -9,7 +10,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"errors"
 )
 
 const (

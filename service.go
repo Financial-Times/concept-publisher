@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"errors"
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
-	"errors"
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
@@ -238,6 +238,7 @@ func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- conce
 		if authorization != "" {
 			req.Header.Set("Authorization", authorization)
 		}
+		fmt.Printf("REQUEST: %v", req)
 		resp, err := httpClient.Do(req)
 		if err != nil {
 			select {
