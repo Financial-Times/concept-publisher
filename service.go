@@ -238,7 +238,7 @@ func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- conce
 		if authorization != "" {
 			req.Header.Set("Authorization", authorization)
 		}
-		fmt.Printf("REQUEST: %v", req)
+
 		resp, err := httpClient.Do(req)
 		if err != nil {
 			select {
@@ -255,6 +255,7 @@ func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- conce
 			}
 		}
 		data, err := ioutil.ReadAll(resp.Body)
+		fmt.Printf("Response: %v", resp)
 		resp.Body.Close()
 		if err != nil {
 			select {
