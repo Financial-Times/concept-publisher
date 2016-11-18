@@ -255,8 +255,7 @@ func fetchConcepts(baseURL *url.URL, authorization string, concepts chan<- conce
 			}
 		}
 		data, err := ioutil.ReadAll(resp.Body)
-		fmt.Printf("Response: %v", resp)
-		fmt.Printf("Location Header: %v", resp.Header.Get("Location"))
+		fmt.Printf("Response: %v", data)
 		resp.Body.Close()
 		if err != nil {
 			select {
