@@ -24,7 +24,9 @@ const (
 	defined = "Defined"
 	inProgress = "Defined"
 	completed = "Completed"
+	failed = "Failed"
 )
+const reloadSuffix = "__reload"
 
 type job struct {
 	JobID       string   `json:"jobId"`
@@ -52,7 +54,7 @@ type notFoundError struct {
 }
 
 func newNotFoundError(jobID string) *notFoundError {
-	return &notFoundError{msg: fmt.Sprintf("Job with id=%s not found", jobID)}
+	return &notFoundError{msg: fmt.Sprintf("message=\"Job not found\" jobId=%s", jobID)}
 }
 
 func (e *notFoundError) Error() string {
@@ -90,26 +92,18 @@ func newPublishService(clusterRouterAddress *url.URL, producer producer.MessageP
 	}
 }
 
-func (s *publishService) newJob(conceptType string, ids []string, baseURL *url.URL, authorization string, throttle int) (*job, error) {
+func (s *publishService) newJob(conceptType string, ids []string, baseURL *url.URL, throttle int, authorization string) (*job, error) {
+	jobID := "job_" + generateID()
 	if baseURL.Host == "" {
 		baseURL.Scheme = s.clusterRouterAddress.Scheme
 		baseURL.Host = s.clusterRouterAddress.Host
 	}
-	err := s.reload(baseURL, authorization)
-	if err != nil {
-		log.Infof("Couldn't reload concept=%s %v", conceptType, err)
-	}
-	count, err := s.getCount(ids, baseURL, authorization)
-	if err != nil {
-		return nil, fmt.Errorf("Could not determine count for concept=%s %v", conceptType, err)
-	}
-	jobID := "job_" + generateID()
 	theJob := &job{
+		JobID: jobID,
 		ConceptType: conceptType,
 		IDs: ids,
 		URL: *baseURL,
 		Throttle: throttle,
-		Count: count,
 		Progress: 0,
 		Status: defined,
 		FailedIDs: []string{},
@@ -117,7 +111,7 @@ func (s *publishService) newJob(conceptType string, ids []string, baseURL *url.U
 	s.mutex.Lock()
 	s.jobs[jobID] = theJob
 	s.mutex.Unlock()
-	log.Infof("Created job with jobID=%s", theJob.JobID)
+	log.Infof("message=\"Created job\" jobID=%s", theJob.JobID)
 	return theJob, nil
 }
 
@@ -150,17 +144,28 @@ func (s *publishService) getJobIds() []string {
 }
 
 func (s *publishService) runJob(theJob *job, authorization string) {
+	theJob.Status = inProgress
 	concepts := make(chan concept, loadBuffer)
 	failures := make(chan failure, loadBuffer)
+	err := s.reload(theJob.URL, authorization)
+	if err != nil {
+		log.Infof("message=\"Couldn't reload concepts\" conceptType=\"%s\" %v", theJob.ConceptType, err)
+	}
+	count, err := s.getCount(theJob.IDs, theJob.URL, authorization)
+	if err != nil {
+		log.Warnf("message=\"Could not determine count for concepts. Job failed.\" conceptType=\"%s\" %v", theJob.ConceptType, err)
+		theJob.Status = failed
+		return
+	}
+	theJob.Count = count
 	go func() {
 		s.fetchAll(theJob, authorization, concepts, failures)
 		close(concepts)
 	}()
-	theJob.Status = inProgress
 	for theJob.Progress = 0; theJob.Progress < theJob.Count; theJob.Progress++ {
 		select {
 		case f := <-failures:
-			log.Warnf("jobID=%v failed fetching conceptID=%v in %v", theJob.JobID, f.conceptId, f.error)
+			log.Warnf("message=\"failure at a concept, in a job\" jobID=%v conceptID=%v %v", theJob.JobID, f.conceptId, f.error)
 			theJob.FailedIDs = append(theJob.FailedIDs, f.conceptId)
 		case c := <-concepts:
 			message := producer.Message{
@@ -169,13 +174,13 @@ func (s *publishService) runJob(theJob *job, authorization string) {
 			}
 			err := s.producer.SendMessage(c.id, message)
 			if err != nil {
-				log.Warnf("jobID=%v failed publishing conceptID=%v in %v", theJob.JobID, c.id, err)
+				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
 		}
 	}
 	theJob.Status = completed
-	log.Infof("Completed job with jobID=%s", theJob.JobID)
+	log.Infof("message=\"Completed job\" jobID=%s status=%s nFailedIds=%d", theJob.JobID, theJob.Status, len(theJob.FailedIDs))
 }
 
 func (s *publishService) fetchAll(theJob *job, authorization string, concepts chan<- concept, failures chan<- failure) {
@@ -261,7 +266,7 @@ func (s *publishService) fetchConcepts(theJob *job, authorization string, concep
 			select {
 			case failures <- failure{
 				conceptId: id,
-				error: fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err),
+				error: fmt.Errorf("message=\"Could not make HTTP request to fetch a concept\" conceptId=%v %v", id, err),
 			}:
 			default:
 			}
@@ -270,7 +275,7 @@ func (s *publishService) fetchConcepts(theJob *job, authorization string, concep
 			select {
 			case failures <- failure{
 				conceptId: id,
-				error: fmt.Errorf("Could not get concept %v from %v. Returned %v", id, theJob.URL, resp.StatusCode),
+				error: fmt.Errorf("message=\"Fetching a concept resulted in not ok response\" conceptId=%v jobId=%v status=%v", id, theJob.URL, resp.StatusCode),
 			}:
 			default:
 			}
@@ -281,7 +286,7 @@ func (s *publishService) fetchConcepts(theJob *job, authorization string, concep
 			select {
 			case failures <- failure{
 				conceptId: id,
-				error: fmt.Errorf("Could not get concept with uuid: %v (%v)", id, err),
+				error: fmt.Errorf("message=\"Could not read concept from response while fetching\" uuid=%v %v", id, err),
 			}:
 			default:
 				return
@@ -291,7 +296,7 @@ func (s *publishService) fetchConcepts(theJob *job, authorization string, concep
 	}
 }
 
-func (s *publishService) getCount(ids []string, baseURL *url.URL, authorization string) (int, error) {
+func (s *publishService) getCount(ids []string, baseURL url.URL, authorization string) (int, error) {
 	if len(ids) > 0 {
 		return len(ids), nil
 	}
@@ -322,21 +327,22 @@ func (s *publishService) getCount(ids []string, baseURL *url.URL, authorization 
 	return c, nil
 }
 
-func (s *publishService) reload(baseURL *url.URL, authorization string) error {
-	req, _ := http.NewRequest("POST", baseURL.String()+"__reload", nil)
+func (s *publishService) reload(baseURL url.URL, authorization string) error {
+	url := baseURL.String()+reloadSuffix
+	req, _ := http.NewRequest("POST", url, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
 	}
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Could not connect to url=%v to reload concepts: %v", baseURL, err)
+		return fmt.Errorf("message=\"Could not connect to reload concepts\" url=\"%v\" err=\"%s\"", url, err)
 	}
 	defer func() {
 		io.Copy(ioutil.Discard, resp.Body)
 		resp.Body.Close()
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("status=%d when reloading concepts at url=%v", resp.StatusCode, baseURL)
+		return fmt.Errorf("message=\"Incorrect status when reloading concepts\" status=%d url=\"%s\"", resp.StatusCode, url)
 	}
 	return nil
 }
