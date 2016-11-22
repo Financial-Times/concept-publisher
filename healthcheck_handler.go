@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	fthealth "github.com/Financial-Times/go-fthealth"
+	log "github.com/Sirupsen/logrus"
 	"io"
 	"io/ioutil"
 	"net/http"
-	fthealth "github.com/Financial-Times/go-fthealth"
-	log "github.com/Sirupsen/logrus"
-	"errors"
 )
 
 type healthcheckHandler struct {
@@ -90,4 +90,3 @@ func checkIfTopicIsPresent(body []byte, searchedTopic string) error {
 	}
 	return errors.New("Connection could be established to kafka-proxy, but topic was not found")
 }
-

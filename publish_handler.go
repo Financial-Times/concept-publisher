@@ -3,15 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	log "github.com/Sirupsen/logrus"
-	"net/url"
 	"github.com/gorilla/mux"
+	"net/http"
+	"net/url"
 )
 
 type publishHandler struct {
 	publishService *publishService
-	//health  healthcheckHandler
 }
 
 type createJobRequest struct {
@@ -99,5 +98,25 @@ func (h *publishHandler) listJobs(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("message=\"Error on json encoding\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+}
+
+func (h *publishHandler) deleteJob(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	err := h.publishService.deleteJob(id)
+	if err != nil {
+		nfErr, ok := err.(notFoundError)
+		if ok {
+			log.Errorf("message=\"Error deleting job\" %v\n", nfErr)
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		cErr, ok := err.(conflictError)
+		if ok {
+			log.Errorf("message=\"Error deleting job\" %v\n", cErr)
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 	}
 }

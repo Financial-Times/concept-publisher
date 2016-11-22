@@ -1,18 +1,18 @@
 package main
 
 import (
-	_ "net/http/pprof"
-	"os"
-	"net/http"
-	"net/url"
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
 	"net"
-	"time"
+	"net/http"
+	_ "net/http/pprof"
+	"net/url"
+	"os"
 	"strconv"
+	"time"
 )
 
 func main() {
@@ -56,10 +56,10 @@ func main() {
 				}).Dial,
 			},
 		}
-		publishService := newPublishService(clusterRouterAddress, messageProducer, httpClient)
-		healthcheckHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
-		publishHandler := newPublishHandler(&publishService)
-		assignHandlers(*port, &publishHandler, &healthcheckHandler)
+		pubService := newPublishService(clusterRouterAddress, messageProducer, httpClient)
+		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
+		pubHandler := newPublishHandler(&pubService)
+		assignHandlers(*port, &pubHandler, &healthHandler)
 	}
 	err := app.Run(os.Args)
 	if err != nil {
@@ -73,6 +73,7 @@ func assignHandlers(port int, publisherHandler *publishHandler, healthcheckHandl
 	m.HandleFunc("/jobs", publisherHandler.createJob).Methods("POST")
 	m.HandleFunc("/jobs", publisherHandler.listJobs).Methods("GET")
 	m.HandleFunc("/jobs/{id}", publisherHandler.status).Methods("GET")
+	m.HandleFunc("/jobs/{id}", publisherHandler.deleteJob).Methods("DELETE")
 	m.HandleFunc("/__health", healthcheckHandler.health())
 	m.HandleFunc("/__gtg", healthcheckHandler.gtg)
 	log.Infof("Listening on [%v].\n", port)
