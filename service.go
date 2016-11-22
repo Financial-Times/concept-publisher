@@ -3,23 +3,22 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Financial-Times/message-queue-go-producer/producer"
+	log "github.com/Sirupsen/logrus"
+	"github.com/golang/go/src/pkg/bytes"
+	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/Financial-Times/message-queue-go-producer/producer"
-	log "github.com/Sirupsen/logrus"
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
-
-var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
 const loadBuffer = 128
 const concurrentReaders = 128
 const (
@@ -30,17 +29,19 @@ const (
 )
 const reloadSuffix = "__reload"
 
+var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+var conceptTypeRegex, _ = regexp.Compile(`/([\w\-]+)/$"`)
+
 type job struct {
-	JobID         string            `json:"jobId"`
-	ConceptType   string            `json:"conceptType"`
-	IDToTID       map[string]string `json:"IDToTID,omitempty"`
-	URL           url.URL           `json:"url"`
-	Throttle      int               `json:"throttle"`
-	Count         int               `json:"count"`
-	Progress      int               `json:"progress"`
-	Status        string            `json:"status"`
-	FailedIDs     []string          `json:"failedIDs"`
-	PublishedTIDs []string          `json:"publishedTIDs"`
+	JobID       string            `json:"jobID"`
+	ConceptType string            `json:"conceptType"`
+	IDToTID     map[string]string `json:"IDToTID,omitempty"`
+	URL         url.URL           `json:"url"`
+	Throttle    int               `json:"throttle"`
+	Count       int               `json:"count"`
+	Progress    int               `json:"progress"`
+	Status      string            `json:"status"`
+	FailedIDs   []string          `json:"failedIDs"`
 }
 
 type failure struct {
@@ -83,7 +84,7 @@ func newPublishService(clusterRouterAddress *url.URL, producer producer.MessageP
 	}
 }
 
-func (s *publishService) newJob(conceptType string, ids []string, baseURL *url.URL, throttle int, authorization string) (*job, error) {
+func (s *publishService) newJob(ids []string, baseURL *url.URL, throttle int, authorization string) (*job, error) {
 	jobID := "job_" + generateID()
 	if baseURL.Host == "" {
 		baseURL.Scheme = s.clusterRouterAddress.Scheme
@@ -93,16 +94,19 @@ func (s *publishService) newJob(conceptType string, ids []string, baseURL *url.U
 	for _, id := range ids {
 		idMap[id] = ""
 	}
+	foundGroups := conceptTypeRegex.FindStringSubmatch(baseURL.Path)
+	if len(foundGroups) < 2 {
+		return nil, errors.New("Can't find concept type in URL")
+	}
 	theJob := &job{
-		JobID:         jobID,
-		ConceptType:   conceptType,
-		IDToTID:       idMap,
-		URL:           *baseURL,
-		Throttle:      throttle,
-		Progress:      0,
-		Status:        defined,
-		FailedIDs:     []string{},
-		PublishedTIDs: []string{},
+		JobID:       jobID,
+		ConceptType: foundGroups[1],
+		IDToTID:     idMap,
+		URL:         *baseURL,
+		Throttle:    throttle,
+		Progress:    0,
+		Status:      defined,
+		FailedIDs:   []string{},
 	}
 	s.mutex.Lock()
 	s.jobs[jobID] = theJob
@@ -170,7 +174,7 @@ func (s *publishService) runJob(theJob *job, authorization string) {
 			var unmarshalledPayload shortPayload
 			err = json.Unmarshal(c.payload, &unmarshalledPayload)
 			if err != nil {
-				log.Warnf("message=\"failed unmarshalling a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
+				log.Warnf("message=\"failed unmarshalling a concept\" jobID=%v conceptID=%v %v %v", theJob.JobID, c.id, string(c.payload), err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
 			resolvedID := unmarshalledPayload.UUID
@@ -181,7 +185,7 @@ func (s *publishService) runJob(theJob *job, authorization string) {
 				Headers: buildHeader(resolvedID, theJob.ConceptType),
 				Body:    string(c.payload),
 			}
-			theJob.PublishedTIDs = append(theJob.PublishedTIDs, message.Headers["X-Request-Id"])
+			theJob.IDToTID[resolvedID] = message.Headers["X-Request-Id"]
 			err := s.producer.SendMessage(c.id, message)
 			if err != nil {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
@@ -212,12 +216,12 @@ func (s *publishService) fetchAll(theJob *job, authorization string, concepts ch
 }
 
 func (s *publishService) fetchIDList(theJob *job, authorization string, ids chan<- string, failures chan<- failure) {
-	respBody := s.fetchIdsFromRemote(theJob, authorization, failures)
+	body := s.fetchIdsFromRemote(theJob, authorization, failures)
 	type listEntry struct {
 		ID string `json:"id"`
 	}
 	var le listEntry
-	dec := json.NewDecoder(respBody)
+	dec := json.NewDecoder(bytes.NewReader(body))
 	for {
 		err := dec.Decode(&le)
 		if err != nil {
@@ -227,7 +231,7 @@ func (s *publishService) fetchIDList(theJob *job, authorization string, ids chan
 			select {
 			case failures <- failure{
 				conceptID: "",
-				error:     fmt.Errorf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL, err),
+				error:     fmt.Errorf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL.String(), err),
 			}:
 			default:
 			}
@@ -237,7 +241,7 @@ func (s *publishService) fetchIDList(theJob *job, authorization string, ids chan
 	close(ids)
 }
 
-func (s *publishService) fetchIdsFromRemote(theJob *job, authorization string, failures chan<- failure) io.ReadCloser {
+func (s *publishService) fetchIdsFromRemote(theJob *job, authorization string, failures chan<- failure) []byte {
 	req, _ := http.NewRequest("GET", theJob.URL.String()+"__ids", nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
@@ -249,17 +253,21 @@ func (s *publishService) fetchIdsFromRemote(theJob *job, authorization string, f
 			error:     fmt.Errorf("Could not get /__ids from: %v (%v)", theJob.URL, err),
 		}, theJob.Count, failures)
 	}
-	defer func() {
-		io.Copy(ioutil.Discard, resp.Body)
-		resp.Body.Close()
-	}()
+	defer closeNice(resp)
 	if resp.StatusCode != http.StatusOK {
 		fillFailures(failure{
 			conceptID: "",
 			error:     fmt.Errorf("Could not get /__ids from %v. Returned %v", theJob.URL, resp.StatusCode),
 		}, theJob.Count, failures)
 	}
-	return resp.Body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fillFailures(failure{
+			conceptID: "",
+			error:     fmt.Errorf("message=\"Could not read /__ids response\" %v", err),
+		}, theJob.Count, failures)
+	}
+	return body
 }
 
 func fillFailures(fail failure, count int, failures chan<- failure) {
@@ -280,35 +288,43 @@ func (s *publishService) fetchConcepts(theJob *job, authorization string, concep
 		}
 		resp, err := s.httpClient.Do(req)
 		if err != nil {
-			select {
-			case failures <- failure{
+			pushToFailures(failure{
 				conceptID: id,
 				error:     fmt.Errorf("message=\"Could not make HTTP request to fetch a concept\" conceptId=%v %v", id, err),
-			}:
-			default:
-			}
+			}, failures)
+			continue
 		}
 		if resp.StatusCode != http.StatusOK {
-			select {
-			case failures <- failure{
+			pushToFailures(failure{
 				conceptID: id,
 				error:     fmt.Errorf("message=\"Fetching a concept resulted in not ok response\" conceptId=%v jobId=%v status=%v", id, theJob.URL, resp.StatusCode),
-			}:
-			default:
-			}
+			}, failures)
+			continue
 		}
 		data, err := ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
 		if err != nil {
-			select {
-			case failures <- failure{
+			pushToFailures(failure{
 				conceptID: id,
 				error:     fmt.Errorf("message=\"Could not read concept from response while fetching\" uuid=%v %v", id, err),
-			}:
-			default:
-			}
+			}, failures)
+			continue
+		}
+		err = resp.Body.Close()
+		if err != nil {
+			pushToFailures(failure{
+				conceptID: id,
+				error:     fmt.Errorf("message=\"Could not close response while fetching\" uuid=%v %v", id, err),
+			}, failures)
+			continue
 		}
 		concepts <- concept{id: id, payload: data}
+	}
+}
+
+func pushToFailures(fail failure, failures chan<- failure) {
+	select {
+	case failures <- fail:
+	default:
 	}
 }
 
@@ -338,14 +354,10 @@ func (s *publishService) getCount(idToTID map[string]string, baseURL url.URL, au
 	if err != nil {
 		return -1, fmt.Errorf("Could not connect to %v. Error (%v)", baseURL, err)
 	}
-	defer func() {
-		io.Copy(ioutil.Discard, resp.Body)
-		resp.Body.Close()
-	}()
+	defer closeNice(resp)
 	if resp.StatusCode != http.StatusOK {
 		return -1, fmt.Errorf("Could not get count from %v. Returned %v", baseURL, resp.StatusCode)
 	}
-
 	p, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return -1, fmt.Errorf("Could not read count from %v. Error (%v)", baseURL, err)
@@ -367,10 +379,7 @@ func (s *publishService) reload(baseURL url.URL, authorization string) error {
 	if err != nil {
 		return fmt.Errorf("message=\"Could not connect to reload concepts\" url=\"%v\" err=\"%s\"", url, err)
 	}
-	defer func() {
-		io.Copy(ioutil.Discard, resp.Body)
-		resp.Body.Close()
-	}()
+	defer closeNice(resp)
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("message=\"Incorrect status when reloading concepts\" status=%d url=\"%s\"", resp.StatusCode, url)
 	}

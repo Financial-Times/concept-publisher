@@ -5,6 +5,8 @@ import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 )
@@ -14,7 +16,6 @@ type publishHandler struct {
 }
 
 type createJobRequest struct {
-	Concept       string   `json:"concept"`
 	URL           string   `json:"url"`
 	Throttle      int      `json:"throttle"`
 	Authorization string   `json:"authorization"`
@@ -26,7 +27,7 @@ func newPublishHandler(publishService *publishService) publishHandler {
 }
 
 func (j createJobRequest) String() string {
-	return fmt.Sprintf("conceptType=%s URL=\"%s\" Throttle=%d", j.Concept, j.URL, j.Throttle)
+	return fmt.Sprintf("URL=\"%s\" Throttle=%d", j.URL, j.Throttle)
 }
 
 func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
@@ -39,12 +40,6 @@ func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Infof("message=\"Concept publish request received\" %v", jobRequest)
-	if jobRequest.Concept == "" {
-		err := "Concept empty"
-		log.Errorf(err)
-		http.Error(w, err, http.StatusBadRequest)
-		return
-	}
 	if jobRequest.URL == "" {
 		err := "Base url empty"
 		log.Errorf(err)
@@ -63,14 +58,26 @@ func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
-	theJob, err := h.publishService.newJob(jobRequest.Concept, jobRequest.IDS, url, jobRequest.Throttle, jobRequest.Authorization)
-	go h.publishService.runJob(theJob, jobRequest.Authorization)
+	theJob, err := h.publishService.newJob(jobRequest.IDS, url, jobRequest.Throttle, jobRequest.Authorization)
+	if err != nil {
+		log.Errorf("%v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	w.Header().Add("Content-Type", "application/json")
+	type shortJob struct {
+		JobID string `json:"jobID"`
+	}
+	sj := shortJob{JobID: theJob.JobID}
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(theJob.JobID); err != nil {
+	err = enc.Encode(sj)
+	if err != nil {
 		log.Errorf("Error on json encoding=%v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+	w.WriteHeader(http.StatusCreated)
+	go h.publishService.runJob(theJob, jobRequest.Authorization)
 }
 
 func (h *publishHandler) status(w http.ResponseWriter, r *http.Request) {
@@ -106,17 +113,29 @@ func (h *publishHandler) deleteJob(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 	err := h.publishService.deleteJob(id)
 	if err != nil {
-		nfErr, ok := err.(notFoundError)
+		_, ok := err.(*notFoundError)
+		code := http.StatusBadRequest
 		if ok {
-			log.Errorf("message=\"Error deleting job\" %v\n", nfErr)
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
+			code = http.StatusNotFound
 		}
-		cErr, ok := err.(conflictError)
+		_, ok = err.(*conflictError)
 		if ok {
-			log.Errorf("message=\"Error deleting job\" %v\n", cErr)
-			http.Error(w, err.Error(), http.StatusConflict)
-			return
+			code = http.StatusConflict
 		}
+		log.Infof("message=\"Error deleting job\" %v\n", err)
+		http.Error(w, err.Error(), code)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func closeNice(resp *http.Response) {
+	_, err := io.Copy(ioutil.Discard, resp.Body)
+	if err != nil {
+		log.Warnf("message=\"couldn't read response body\" %v", err)
+	}
+	err = resp.Body.Close()
+	if err != nil {
+		log.Warnf("message=\"couldn't close response body\" %v", err)
 	}
 }
