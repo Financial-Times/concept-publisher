@@ -58,7 +58,7 @@ type concept struct {
 	payload []byte
 }
 
-type pubService interface {
+type publishServiceI interface {
 	newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) (*job, error)
 	getJob(jobID string) (*job, notFoundError)
 	getJobStatus(jobID string) (string, notFoundError)
@@ -68,13 +68,13 @@ type pubService interface {
 
 type publishService struct {
 	clusterRouterAddress *url.URL
-	producer             producer.MessageProducer
+	producer             *producer.MessageProducer
 	mutex                *sync.RWMutex //protects jobs
 	jobs                 map[string]*job
 	httpClient           *http.Client
 }
 
-func newPublishService(clusterRouterAddress *url.URL, producer producer.MessageProducer, httpClient *http.Client) publishService {
+func newPublishService(clusterRouterAddress *url.URL, producer *producer.MessageProducer, httpClient *http.Client) publishService {
 	return publishService{
 		clusterRouterAddress: clusterRouterAddress,
 		producer:             producer,
@@ -186,7 +186,7 @@ func (s *publishService) runJob(theJob *job, authorization string) {
 				Body:    string(c.payload),
 			}
 			theJob.IDToTID[resolvedID] = message.Headers["X-Request-Id"]
-			err := s.producer.SendMessage(c.id, message)
+			err := (*s.producer).SendMessage(c.id, message)
 			if err != nil {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)

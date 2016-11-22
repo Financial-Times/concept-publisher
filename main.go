@@ -56,7 +56,7 @@ func main() {
 				}).Dial,
 			},
 		}
-		pubService := newPublishService(clusterRouterAddress, messageProducer, httpClient)
+		pubService := newPublishService(clusterRouterAddress, &messageProducer, httpClient)
 		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
 		pubHandler := newPublishHandler(&pubService)
 		assignHandlers(*port, &pubHandler, &healthHandler)
