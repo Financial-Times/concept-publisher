@@ -25,3 +25,16 @@ func newConflictError(jobID string) *conflictError {
 func (e conflictError) Error() string {
 	return e.msg
 }
+
+type failure struct {
+	conceptID string
+	error     error
+}
+
+func newFailure(conceptID string, err error) *failure {
+	return &failure{conceptID: conceptID, error: err}
+}
+
+func (f *failure) Error() string {
+	return f.error.Error()
+}

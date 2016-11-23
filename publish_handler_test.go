@@ -20,7 +20,7 @@ func TestGetJobIds_Empty(t *testing.T) {
 		t.Fatal(err)
 	}
 	pubService := newPublishService(url, nil, nil)
-	pubHandler := newPublishHandler(&pubService)
+	pubHandler := newPublishHandler(pubService)
 	handler := http.HandlerFunc(pubHandler.listJobs)
 	handler.ServeHTTP(recorder, req)
 	expectedStatus := http.StatusOK
@@ -70,7 +70,7 @@ func TestCreateJob(t *testing.T) {
 			t.Fatal(err)
 		}
 		pubService := newPublishService(url, nil, nil)
-		pubHandler := newPublishHandler(&pubService)
+		pubHandler := newPublishHandler(pubService)
 		handler := http.HandlerFunc(pubHandler.createJob)
 		handler.ServeHTTP(recorder, req)
 		actualStatus := recorder.Code
