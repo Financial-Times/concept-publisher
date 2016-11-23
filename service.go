@@ -6,7 +6,6 @@ import (
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
 	"github.com/golang/go/src/pkg/bytes"
-	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -30,7 +29,7 @@ const (
 const reloadSuffix = "__reload"
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-var conceptTypeRegex, _ = regexp.Compile(`/([\w\-]+)/$"`)
+var conceptTypeRegex, _ = regexp.Compile(`/([\w\-]+)/$`)
 
 type job struct {
 	JobID       string            `json:"jobID"`
@@ -84,7 +83,7 @@ func newPublishService(clusterRouterAddress *url.URL, producer *producer.Message
 	}
 }
 
-func (s *publishService) newJob(ids []string, baseURL *url.URL, throttle int, authorization string) (*job, error) {
+func (s *publishService) newJob(ids []string, baseURL *url.URL, throttle int) (*job, error) {
 	jobID := "job_" + generateID()
 	if baseURL.Host == "" {
 		baseURL.Scheme = s.clusterRouterAddress.Scheme
@@ -96,7 +95,7 @@ func (s *publishService) newJob(ids []string, baseURL *url.URL, throttle int, au
 	}
 	foundGroups := conceptTypeRegex.FindStringSubmatch(baseURL.Path)
 	if len(foundGroups) < 2 {
-		return nil, errors.New("Can't find concept type in URL")
+		return nil, fmt.Errorf("message=\"Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/  \" path=%s", baseURL.Path)
 	}
 	theJob := &job{
 		JobID:       jobID,

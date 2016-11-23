@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"bytes"
 )
 
 type publishHandler struct {
@@ -58,7 +59,7 @@ func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
-	theJob, err := h.publishService.newJob(jobRequest.IDS, url, jobRequest.Throttle, jobRequest.Authorization)
+	theJob, err := h.publishService.newJob(jobRequest.IDS, url, jobRequest.Throttle)
 	if err != nil {
 		log.Errorf("%v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -69,7 +70,9 @@ func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		JobID string `json:"jobID"`
 	}
 	sj := shortJob{JobID: theJob.JobID}
-	enc := json.NewEncoder(w)
+	var respBytes []byte
+	respBuff := bytes.NewBuffer(respBytes)
+	enc := json.NewEncoder(respBuff)
 	err = enc.Encode(sj)
 	if err != nil {
 		log.Errorf("Error on json encoding=%v\n", err)
@@ -77,6 +80,7 @@ func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
+	w.Write(respBytes)
 	go h.publishService.runJob(theJob, jobRequest.Authorization)
 }
 
