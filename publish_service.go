@@ -69,7 +69,7 @@ func newPublishService(clusterRouterAddress *url.URL, queueSer *queueServiceI, h
 }
 
 type publishServiceI interface {
-	newJob(ids []string, baseURL *url.URL, throttle int) (*job, error)
+	createJob(ids []string, baseURL url.URL, throttle int) (*job, error)
 	getJob(jobID string) (*job, error)
 	getJobStatus(jobID string) (string, error)
 	getJobIds() []string
@@ -77,7 +77,7 @@ type publishServiceI interface {
 	deleteJob(jobID string) error
 }
 
-func (s publishService) newJob(ids []string, baseURL *url.URL, throttle int) (*job, error) {
+func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (*job, error) {
 	jobID := "job_" + generateID()
 	if baseURL.Host == "" {
 		baseURL.Scheme = s.clusterRouterAddress.Scheme
@@ -95,7 +95,7 @@ func (s publishService) newJob(ids []string, baseURL *url.URL, throttle int) (*j
 		JobID:       jobID,
 		ConceptType: foundGroups[1],
 		IDToTID:     idMap,
-		URL:         *baseURL,
+		URL:         baseURL,
 		Throttle:    throttle,
 		Progress:    0,
 		Status:      defined,

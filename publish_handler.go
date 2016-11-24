@@ -59,7 +59,7 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
-	theJob, err := (*h.publishService).newJob(jobRequest.IDS, url, jobRequest.Throttle)
+	theJob, err := (*h.publishService).createJob(jobRequest.IDS, *url, jobRequest.Throttle)
 	if err != nil {
 		log.Errorf("%v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
