@@ -57,7 +57,7 @@ func TestCreateJob(t *testing.T) {
 		},
 		{
 			"http://localhost:8080",
-			"__special-reports-transformer/transformers/topics/",
+			"/__special-reports-transformer/transformers/topics/",
 			"topics",
 			[]string{},
 			1,
@@ -67,7 +67,7 @@ func TestCreateJob(t *testing.T) {
 		},
 		{
 			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			"__special-reports-transformer/transformers/topics/",
+			"/__topics-transformer/transformers/topics/",
 			"topics",
 			[]string{"1", "2"},
 			1,
@@ -76,10 +76,11 @@ func TestCreateJob(t *testing.T) {
 				"1": "",
 				"2": "",
 			},
-			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/transformers/topics/",
+			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
 		},
 	}
-	for _, test := range tests {
+	for i, test := range tests {
+		t.Logf("test nr %d", i)
 		clusterUrl, err := url.Parse(test.clusterUrl)
 		if err != nil {
 			t.Fatal(err)
@@ -98,15 +99,19 @@ func TestCreateJob(t *testing.T) {
 
 		actualJob, err := pubService.createJob(test.ids, *baseUrl, test.throttle)
 
-		if (err != nil) && (test.createErr != nil) {
-			if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
-				t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.createErr)
+		if (err != nil) {
+			if (test.createErr != nil) {
+				if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
+					t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.createErr)
+				}
+				return
 			}
+			t.Fatalf("unexpected error: %v", err)
 			return
 		}
 		expectedJob := job{
 			JobID: actualJob.JobID,
-			ConceptType: "special-reports",
+			ConceptType: test.conceptType,
 			IDToTID: test.idToTID,
 			URL: *finalBaseUrl,
 			Throttle: test.throttle,
