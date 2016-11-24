@@ -156,7 +156,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 			var unmarshalledPayload shortPayload
 			err = json.Unmarshal(c.payload, &unmarshalledPayload)
 			if err != nil {
-				log.Warnf("message=\"failed unmarshalling a concept\" jobID=%v conceptID=%v %v %v", theJob.JobID, c.id, string(c.payload), err)
+				log.Warnf("message=\"failed unmarshalling a concept\" jobID=%v conceptID=%v payload=%v %v", theJob.JobID, c.id, string(c.payload), err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
 			resolvedID := unmarshalledPayload.UUID
@@ -177,7 +177,10 @@ func (p publishService) runJob(theJob *job, authorization string) {
 }
 
 func (s publishService) fetchAll(theJob *job, authorization string, concepts chan<- concept, failures chan<- failure) {
-	ticker := time.NewTicker(time.Second / time.Duration(theJob.Throttle))
+	ticker := time.NewTicker(time.Second / 1000)
+	if theJob.Throttle > 0 {
+		ticker = time.NewTicker(time.Second / time.Duration(theJob.Throttle))
+	}
 	idsChan := make(chan string, loadBuffer)
 	if len(theJob.IDToTID) > 0 {
 		go func() {
@@ -192,7 +195,6 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 	for i := 0; i < concurrentReaders; i++ {
 		go s.fetchConcepts(theJob, authorization, concepts, idsChan, failures, ticker)
 	}
-	close(concepts)
 }
 
 func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<- string, failures chan<- failure) {
@@ -221,8 +223,14 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 }
 
 func (p publishService) fetchConcepts(theJob *job, authorization string, concepts chan<- concept, ids <-chan string, failures chan<- failure, ticker *time.Ticker) {
-	for id := range ids {
-		<-ticker.C
+	for {
+		id, ok := <-ids
+		if !ok {
+			break
+		}
+		if (theJob.Throttle > 0) {
+			<-ticker.C
+		}
 		data, fail := (*p.httpService).fetchConcept(id, theJob.URL.String() + id, authorization)
 		if fail != nil {
 			pushToFailures(fail, failures)

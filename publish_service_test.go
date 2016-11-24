@@ -4,9 +4,9 @@ import (
 	"testing"
 	"net/url"
 	"reflect"
-	"github.com/pkg/errors"
 	"strings"
 	"sync"
+	"errors"
 )
 
 func TestGetJobIds_Empty(t *testing.T) {
@@ -15,7 +15,7 @@ func TestGetJobIds_Empty(t *testing.T) {
 		t.Fatal(err)
 	}
 	var mockQueueSer queueServiceI = mockedQueueService{}
-	var mockHttpSer httpServiceI = mockedHttpService{}
+	var mockHttpSer httpServiceI = nilHttpService{}
 	pubService := newPublishService(url, &mockQueueSer, &mockHttpSer)
 	actualIds := pubService.getJobIds()
 	expectedIds := []string{}
@@ -79,14 +79,13 @@ func TestCreateJob(t *testing.T) {
 			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
 		},
 	}
-	for i, test := range tests {
-		t.Logf("test nr %d", i)
+	for _, test := range tests {
 		clusterUrl, err := url.Parse(test.clusterUrl)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var mockQueueSer queueServiceI = mockedQueueService{}
-		var mockHttpSer httpServiceI = mockedHttpService{}
+		var mockHttpSer httpServiceI = nilHttpService{}
 		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer)
 		baseUrl, err := url.Parse(test.baseUrl)
 		if err != nil {
@@ -175,7 +174,7 @@ func TestDeleteJob(t *testing.T) {
 			t.Fatal(err)
 		}
 		var mockQueueSer queueServiceI = mockedQueueService{}
-		var mockHttpSer httpServiceI = mockedHttpService{}
+		var mockHttpSer httpServiceI = nilHttpService{}
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
 			queueServiceI: &mockQueueSer,
@@ -205,9 +204,40 @@ func TestDeleteJob(t *testing.T) {
 func TestRunJob(t *testing.T) {
 	tests := []struct {
 		baseURL    string
+		httpSer    httpServiceI
+		queueSer   queueServiceI
+		idToTID    map[string]string
 	}{
 		{
 			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			mockedHttpService{
+				reloadF: func(url string, authorization string) error {
+					return nil
+				},
+				getIdsF: func(string, string) ([]byte, *failure) {
+					return []byte(`{"id":"1"}
+					{"id":"2"}`), nil
+				},
+				getCountF: func(string, string) (int, error) {
+					return 2, nil
+				},
+				fetchConceptF: func(id string, url string, auth string) ([]byte, *failure) {
+					if reflect.DeepEqual(id, "1") {
+						return []byte(`{"uuid": "1"}`), nil
+					}
+					if reflect.DeepEqual(id, "2") {
+						return []byte(`{"uuid": "2"}`), nil
+					}
+					return []byte{}, &failure{
+						conceptID: id,
+						error: errors.New("Requested something that shouldn't have."),
+					}
+				},
+			},
+			checkingQueueService{
+				idsSent: []string{},
+			},
+			map[string]string{},
 		},
 	}
 	for _, test := range tests {
@@ -216,20 +246,20 @@ func TestRunJob(t *testing.T) {
 			t.Fatal(err)
 		}
 		var mockQueueSer queueServiceI = mockedQueueService{}
-		var mockHttpSer httpServiceI = mockedHttpService{}
+		var mockHttpSer httpServiceI = test.httpSer
 		if err != nil {
 			t.Fatalf("unexpected error. %v", err)
 		}
-		baseUrl, err := url.Parse(test.baseURL)
+		testBaseUrl, err := url.Parse(test.baseURL)
 		if err != nil {
 			t.Fatalf("unexpected error. %v", err)
 		}
 		oneJob := &job{
 			JobID: "job_1",
-			URL: *baseUrl,
+			URL: *testBaseUrl,
 			ConceptType: "topics",
-			IDToTID: map[string]string{},
-			Throttle: 1,
+			IDToTID: test.idToTID,
+			Throttle: 0,
 			Status: defined,
 			FailedIDs: []string{},
 		}
@@ -246,34 +276,69 @@ func TestRunJob(t *testing.T) {
 
 		pubService.runJob(oneJob, "Basic 1234")
 
-		//if len(pubService.jobs) != test.nJobsAfter {
-		//	t.Fatalf("wrong number of jobs. diff got vs want:\n%d\n%d", len(pubService.jobs), test.nJobsAfter)
-		//}
+		_, ok := oneJob.IDToTID["1"]
+		if !ok {
+			t.Fatal("id 1 didn't publish")
+		}
+		_, ok = oneJob.IDToTID["2"]
+		if !ok {
+			t.Fatal("id 2 didn't publish")
+		}
 	}
 }
 
-type mockedQueueService struct {
-}
+type mockedQueueService struct {}
 
 func (q mockedQueueService) sendMessage(id string, conceptType string, tid string, payload []byte) error {
 	return nil
 }
 
-type mockedHttpService struct {
+type checkingQueueService struct {
+	idsSent   []string
 }
 
-func (h mockedHttpService) reload(url string, authorization string) error {
+func (q checkingQueueService) sendMessage(id string, conceptType string, tid string, payload []byte) error {
+	q.idsSent = append(q.idsSent, id)
 	return nil
 }
 
+type mockedHttpService struct {
+	reloadF       func(string, string) error
+	getIdsF       func(string, string) ([]byte, *failure)
+	getCountF     func(string, string) (int, error)
+	fetchConceptF func(string, string, string) ([]byte, *failure)
+}
+
+func (h mockedHttpService) reload(url string, authorization string) error {
+	return h.reloadF(url, authorization)
+}
+
 func (h mockedHttpService) getIds(url string, authorization string) ([]byte, *failure) {
-	return []byte{}, nil
+	return h.getIdsF(url, authorization)
 }
 
 func (h mockedHttpService) getCount(url string, authorization string) (int, error) {
-	return -1, nil
+	return h.getCountF(url, authorization)
 }
 
 func (h mockedHttpService) fetchConcept(conceptID string, url string, authorization string) ([]byte, *failure) {
+	return h.fetchConceptF(conceptID, url, authorization)
+}
+
+type nilHttpService struct {}
+
+func (h nilHttpService) reload(url string, authorization string) error {
+	return nil
+}
+
+func (h nilHttpService) getIds(url string, authorization string) ([]byte, *failure) {
+	return []byte{}, nil
+}
+
+func (h nilHttpService) getCount(url string, authorization string) (int, error) {
+	return -1, nil
+}
+
+func (h nilHttpService) fetchConcept(conceptID string, url string, authorization string) ([]byte, *failure) {
 	return []byte{}, nil
 }
