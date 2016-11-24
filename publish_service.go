@@ -71,7 +71,6 @@ func newPublishService(clusterRouterAddress *url.URL, queueSer *queueServiceI, h
 type publishServiceI interface {
 	createJob(ids []string, baseURL url.URL, throttle int) (*job, error)
 	getJob(jobID string) (*job, error)
-	getJobStatus(jobID string) (string, error)
 	getJobIds() []string
 	runJob(theJob *job, authorization string)
 	deleteJob(jobID string) error
@@ -116,14 +115,6 @@ func (s publishService) getJob(jobID string) (*job, error) {
 	}
 	s.mutex.RUnlock()
 	return job, nil
-}
-
-func (s publishService) getJobStatus(jobID string) (string, error) {
-	job, err := s.getJob(jobID)
-	if err != nil {
-		return "", err
-	}
-	return job.Status, nil
 }
 
 func (s publishService) getJobIds() []string {
