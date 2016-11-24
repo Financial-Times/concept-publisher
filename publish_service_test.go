@@ -33,6 +33,7 @@ func TestCreateJob(t *testing.T) {
 		throttle       int
 		createErr      error
 		idToTID        map[string]string
+		finalBaseUrl   string
 	}{
 		{
 			"http://localhost:8080",
@@ -42,15 +43,17 @@ func TestCreateJob(t *testing.T) {
 			1,
 			nil,
 			make(map[string]string),
+			"http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
 		},
 		{
-			"http://localhost:8080",
-			"http://localhost:8080/__special-reports-transformer/transformers/special-reports",
+			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			"http://somethingelse:8080/__special-reports-transformer/transformers/special-reports",
 			"special-reports",
 			[]string{},
 			1,
 			errors.New(`message="Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/`),
 			make(map[string]string),
+			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/transformers/topics/",
 		},
 		{
 			"http://localhost:8080",
@@ -60,6 +63,20 @@ func TestCreateJob(t *testing.T) {
 			1,
 			nil,
 			make(map[string]string),
+			"http://localhost:8080/__special-reports-transformer/transformers/topics/",
+		},
+		{
+			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			"__special-reports-transformer/transformers/topics/",
+			"topics",
+			[]string{"1", "2"},
+			1,
+			nil,
+			map[string]string{
+				"1": "",
+				"2": "",
+			},
+			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/transformers/topics/",
 		},
 	}
 	for _, test := range tests {
@@ -71,6 +88,10 @@ func TestCreateJob(t *testing.T) {
 		var mockHttpSer httpServiceI = mockedHttpService{}
 		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer)
 		baseUrl, err := url.Parse(test.baseUrl)
+		if err != nil {
+			t.Fatalf("unexpected error. %v", err)
+		}
+		finalBaseUrl, err := url.Parse(test.finalBaseUrl)
 		if err != nil {
 			t.Fatalf("unexpected error. %v", err)
 		}
@@ -87,7 +108,7 @@ func TestCreateJob(t *testing.T) {
 			JobID: actualJob.JobID,
 			ConceptType: "special-reports",
 			IDToTID: test.idToTID,
-			URL: *baseUrl,
+			URL: *finalBaseUrl,
 			Throttle: test.throttle,
 			Progress: 0,
 			Status: defined,

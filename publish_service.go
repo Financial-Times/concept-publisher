@@ -78,10 +78,8 @@ type publishServiceI interface {
 
 func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (*job, error) {
 	jobID := "job_" + generateID()
-	if baseURL.Host == "" {
-		baseURL.Scheme = s.clusterRouterAddress.Scheme
-		baseURL.Host = s.clusterRouterAddress.Host
-	}
+	baseURL.Scheme = s.clusterRouterAddress.Scheme
+	baseURL.Host = s.clusterRouterAddress.Host
 	idMap := make(map[string]string)
 	for _, id := range ids {
 		idMap[id] = ""
