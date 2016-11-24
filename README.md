@@ -1,4 +1,5 @@
 # Concept publisher (concept-publisher)
+[![CircleCI](https://circleci.com/gh/Financial-Times/concept-publisher.svg?style=svg)](https://circleci.com/gh/Financial-Times/concept-publisher) [![Go Report Card](https://goreportcard.com/badge/github.com/Financial-Times/concept-publisher)](https://goreportcard.com/report/github.com/Financial-Times/concept-publisher) [![Coverage Status](https://coveralls.io/repos/github/Financial-Times/concept-publisher/badge.svg?branch=tests)](https://coveralls.io/github/Financial-Times/concept-publisher?branch=tests)
 [![Circle CI](https://circleci.com/gh/Financial-Times/concept-publisher/tree/master.png?style=shield)](https://circleci.com/gh/Financial-Times/concept-publisher/tree/master)
 
 __Retrives transformed concepts and add them to kafka.__
