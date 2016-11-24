@@ -248,7 +248,7 @@ func (s publishService) deleteJob(jobID string) error {
 	if err != nil {
 		return err
 	}
-	if (theJob.Status != completed) && (theJob.Status != failed) {
+	if (theJob.Status != completed) && (theJob.Status != failed) && (theJob.Status != defined) {
 		return newConflictError(jobID)
 	}
 	s.mutex.Lock()
