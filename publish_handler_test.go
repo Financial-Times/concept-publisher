@@ -9,7 +9,7 @@ import (
 	"github.com/golang/go/src/pkg/bytes"
 )
 
-func TestGetJobIds_Empty(t *testing.T) {
+func TestListJobs_Empty(t *testing.T) {
 	req, err := http.NewRequest("GET", "/jobs", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -19,8 +19,8 @@ func TestGetJobIds_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pubService := newPublishService(url, nil, nil)
-	pubHandler := newPublishHandler(pubService)
+	var pubService publishServiceI = newPublishService(url, nil, nil)
+	var pubHandler publishHandler = newPublishHandler(&pubService)
 	handler := http.HandlerFunc(pubHandler.listJobs)
 	handler.ServeHTTP(recorder, req)
 	expectedStatus := http.StatusOK
@@ -69,8 +69,8 @@ func TestCreateJob(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		pubService := newPublishService(url, nil, nil)
-		pubHandler := newPublishHandler(pubService)
+		var pubService publishServiceI = newPublishService(url, nil, nil)
+		pubHandler := newPublishHandler(&pubService)
 		handler := http.HandlerFunc(pubHandler.createJob)
 		handler.ServeHTTP(recorder, req)
 		actualStatus := recorder.Code

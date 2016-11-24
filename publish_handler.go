@@ -13,7 +13,7 @@ import (
 )
 
 type publishHandler struct {
-	publishService *publishService
+	publishService *publishServiceI
 }
 
 type createJobRequest struct {
@@ -23,7 +23,7 @@ type createJobRequest struct {
 	IDS           []string `json:"ids"`
 }
 
-func newPublishHandler(publishService *publishService) publishHandler {
+func newPublishHandler(publishService *publishServiceI) publishHandler {
 	return publishHandler{publishService: publishService}
 }
 
@@ -31,7 +31,7 @@ func (j createJobRequest) String() string {
 	return fmt.Sprintf("URL=\"%s\" Throttle=%d", j.URL, j.Throttle)
 }
 
-func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
+func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 	var jobRequest createJobRequest
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&jobRequest); err != nil {
@@ -59,7 +59,7 @@ func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
-	theJob, err := h.publishService.newJob(jobRequest.IDS, url, jobRequest.Throttle)
+	theJob, err := (*h.publishService).newJob(jobRequest.IDS, url, jobRequest.Throttle)
 	if err != nil {
 		log.Errorf("%v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -81,13 +81,13 @@ func (h *publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusCreated)
 	w.Write(respBytes)
-	go h.publishService.runJob(theJob, jobRequest.Authorization)
+	go (*h.publishService).runJob(theJob, jobRequest.Authorization)
 }
 
-func (h *publishHandler) status(w http.ResponseWriter, r *http.Request) {
+func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	status, err := h.publishService.getJob(id)
+	status, err := (*h.publishService).getJob(id)
 	if err != nil {
 		log.Errorf("message=\"Error returning job\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -102,20 +102,20 @@ func (h *publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *publishHandler) listJobs(w http.ResponseWriter, r *http.Request) {
+func (h publishHandler) listJobs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(h.publishService.getJobIds()); err != nil {
+	if err := enc.Encode((*h.publishService).getJobIds()); err != nil {
 		log.Errorf("message=\"Error on json encoding\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
-func (h *publishHandler) deleteJob(w http.ResponseWriter, r *http.Request) {
+func (h publishHandler) deleteJob(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	err := h.publishService.deleteJob(id)
+	err := (*h.publishService).deleteJob(id)
 	if err != nil {
 		_, ok := err.(*notFoundError)
 		code := http.StatusBadRequest

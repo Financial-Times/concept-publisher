@@ -11,8 +11,8 @@ type httpService struct {
 	httpClient *http.Client
 }
 
-func newHttpService(httpClient *http.Client) *httpService {
-	return &httpService{httpClient: httpClient}
+func newHttpService(httpClient *http.Client) httpService {
+	return httpService{httpClient: httpClient}
 }
 
 type httpServiceI interface {
@@ -22,7 +22,7 @@ type httpServiceI interface {
 	fetchConcept(conceptID string, url string, authorization string) ([]byte, *failure)
 }
 
-func (h *httpService) reload(url string, authorization string) error {
+func (h httpService) reload(url string, authorization string) error {
 	req, _ := http.NewRequest("POST", url, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
@@ -38,7 +38,7 @@ func (h *httpService) reload(url string, authorization string) error {
 	return nil
 }
 
-func (h *httpService) getIds(url string, authorization string) ([]byte, *failure) {
+func (h httpService) getIds(url string, authorization string) ([]byte, *failure) {
 	req, _ := http.NewRequest("GET", url, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
@@ -58,7 +58,7 @@ func (h *httpService) getIds(url string, authorization string) ([]byte, *failure
 	return body, nil
 }
 
-func (h *httpService) getCount(url string, authorization string) (int, error) {
+func (h httpService) getCount(url string, authorization string) (int, error) {
 	req, _ := http.NewRequest("GET", url, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
@@ -82,7 +82,7 @@ func (h *httpService) getCount(url string, authorization string) (int, error) {
 	return count, nil
 }
 
-func (h *httpService) fetchConcept(conceptID string, url string, authorization string) ([]byte, *failure) {
+func (h httpService) fetchConcept(conceptID string, url string, authorization string) ([]byte, *failure) {
 	req, _ := http.NewRequest("GET", url, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)

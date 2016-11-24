@@ -56,11 +56,11 @@ func main() {
 				}).Dial,
 			},
 		}
-		queueSer := newQueueService(&messageProducer)
-		httpSer := newHttpService(httpClient)
-		pubService := newPublishService(clusterRouterAddress, queueSer, httpSer)
+		var queueSerI queueServiceI = newQueueService(&messageProducer)
+		var httpSerI httpServiceI = newHttpService(httpClient)
+		var pubSerI publishServiceI = newPublishService(clusterRouterAddress, &queueSerI, &httpSerI)
 		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
-		pubHandler := newPublishHandler(pubService)
+		pubHandler := newPublishHandler(&pubSerI)
 		assignHandlers(*port, &pubHandler, &healthHandler)
 	}
 	err := app.Run(os.Args)

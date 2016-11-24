@@ -52,16 +52,16 @@ type concept struct {
 
 type publishService struct {
 	clusterRouterAddress *url.URL
-	queueService         *queueService
+	queueServiceI        *queueServiceI
 	mutex                *sync.RWMutex //protects jobs
 	jobs                 map[string]*job
-	httpService          *httpService
+	httpService          *httpServiceI
 }
 
-func newPublishService(clusterRouterAddress *url.URL, queueSer *queueService, httpSer *httpService) *publishService {
-	return &publishService{
+func newPublishService(clusterRouterAddress *url.URL, queueSer *queueServiceI, httpSer *httpServiceI) publishService {
+	return publishService{
 		clusterRouterAddress: clusterRouterAddress,
-		queueService:         queueSer,
+		queueServiceI:        queueSer,
 		mutex:                &sync.RWMutex{},
 		jobs:                 make(map[string]*job),
 		httpService:          httpSer,
@@ -69,14 +69,15 @@ func newPublishService(clusterRouterAddress *url.URL, queueSer *queueService, ht
 }
 
 type publishServiceI interface {
-	newJob(concept string, ids []string, baseURL *url.URL, authorization string, throttle int) (*job, error)
-	getJob(jobID string) (*job, notFoundError)
-	getJobStatus(jobID string) (string, notFoundError)
+	newJob(ids []string, baseURL *url.URL, throttle int) (*job, error)
+	getJob(jobID string) (*job, error)
+	getJobStatus(jobID string) (string, error)
 	getJobIds() []string
 	runJob(theJob *job, authorization string)
+	deleteJob(jobID string) error
 }
 
-func (s *publishService) newJob(ids []string, baseURL *url.URL, throttle int) (*job, error) {
+func (s publishService) newJob(ids []string, baseURL *url.URL, throttle int) (*job, error) {
 	jobID := "job_" + generateID()
 	if baseURL.Host == "" {
 		baseURL.Scheme = s.clusterRouterAddress.Scheme
@@ -107,7 +108,7 @@ func (s *publishService) newJob(ids []string, baseURL *url.URL, throttle int) (*
 	return theJob, nil
 }
 
-func (s *publishService) getJob(jobID string) (*job, error) {
+func (s publishService) getJob(jobID string) (*job, error) {
 	s.mutex.RLock()
 	job, ok := s.jobs[jobID]
 	if !ok {
@@ -117,7 +118,7 @@ func (s *publishService) getJob(jobID string) (*job, error) {
 	return job, nil
 }
 
-func (s *publishService) getJobStatus(jobID string) (string, error) {
+func (s publishService) getJobStatus(jobID string) (string, error) {
 	job, err := s.getJob(jobID)
 	if err != nil {
 		return "", err
@@ -125,7 +126,7 @@ func (s *publishService) getJobStatus(jobID string) (string, error) {
 	return job.Status, nil
 }
 
-func (s *publishService) getJobIds() []string {
+func (s publishService) getJobIds() []string {
 	jobIds := []string{}
 	s.mutex.RLock()
 	for _, j := range s.jobs {
@@ -135,18 +136,18 @@ func (s *publishService) getJobIds() []string {
 	return jobIds
 }
 
-func (p *publishService) runJob(theJob *job, authorization string) {
+func (p publishService) runJob(theJob *job, authorization string) {
 	theJob.Status = inProgress
 	concepts := make(chan concept, loadBuffer)
 	failures := make(chan failure, loadBuffer)
-	err := p.httpService.reload(theJob.URL.String() + reloadSuffix, authorization)
+	err := (*p.httpService).reload(theJob.URL.String() + reloadSuffix, authorization)
 	if err != nil {
 		log.Infof("message=\"Couldn't reload concepts\" conceptType=\"%s\" %v", theJob.ConceptType, err)
 	}
 	if len(theJob.IDToTID) > 0 {
 		theJob.Count = len(theJob.IDToTID)
 	} else {
-		theJob.Count, err = p.httpService.getCount(theJob.URL.String() + countSuffix, authorization)
+		theJob.Count, err = (*p.httpService).getCount(theJob.URL.String() + countSuffix, authorization)
 		if err != nil {
 			log.Warnf("message=\"Could not determine count for concepts. Job failed.\" conceptType=\"%s\" %v", theJob.ConceptType, err)
 			theJob.Status = failed
@@ -175,7 +176,7 @@ func (p *publishService) runJob(theJob *job, authorization string) {
 			}
 			tid := "tid_" + generateID()
 			theJob.IDToTID[resolvedID] = tid
-			err := p.queueService.sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
+			err := (*p.queueServiceI).sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
 			if err != nil {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
@@ -186,7 +187,7 @@ func (p *publishService) runJob(theJob *job, authorization string) {
 	log.Infof("message=\"Completed job\" jobID=%s status=%s nFailedIds=%d", theJob.JobID, theJob.Status, len(theJob.FailedIDs))
 }
 
-func (s *publishService) fetchAll(theJob *job, authorization string, concepts chan<- concept, failures chan<- failure) {
+func (s publishService) fetchAll(theJob *job, authorization string, concepts chan<- concept, failures chan<- failure) {
 	ticker := time.NewTicker(time.Second / time.Duration(theJob.Throttle))
 	idsChan := make(chan string, loadBuffer)
 	if len(theJob.IDToTID) > 0 {
@@ -205,8 +206,8 @@ func (s *publishService) fetchAll(theJob *job, authorization string, concepts ch
 	close(concepts)
 }
 
-func (p *publishService) fetchIDList(theJob *job, authorization string, ids chan<- string, failures chan<- failure) {
-	body, fail := p.httpService.getIds(theJob.URL.String() + idsSuffix, authorization)
+func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<- string, failures chan<- failure) {
+	body, fail := (*p.httpService).getIds(theJob.URL.String() + idsSuffix, authorization)
 	if fail != nil {
 		fillFailures(fail, theJob.Count, failures)
 		return
@@ -230,19 +231,10 @@ func (p *publishService) fetchIDList(theJob *job, authorization string, ids chan
 	close(ids)
 }
 
-func fillFailures(fail *failure, count int, failures chan<- failure) {
-	for i := 0; i < count; i++ {
-		select {
-		case failures <- *fail:
-		default:
-		}
-	}
-}
-
-func (p *publishService) fetchConcepts(theJob *job, authorization string, concepts chan<- concept, ids <-chan string, failures chan<- failure, ticker *time.Ticker) {
+func (p publishService) fetchConcepts(theJob *job, authorization string, concepts chan<- concept, ids <-chan string, failures chan<- failure, ticker *time.Ticker) {
 	for id := range ids {
 		<-ticker.C
-		data, fail := p.httpService.fetchConcept(id, theJob.URL.String() + id, authorization)
+		data, fail := (*p.httpService).fetchConcept(id, theJob.URL.String() + id, authorization)
 		if fail != nil {
 			pushToFailures(fail, failures)
 			continue
@@ -251,14 +243,7 @@ func (p *publishService) fetchConcepts(theJob *job, authorization string, concep
 	}
 }
 
-func pushToFailures(fail *failure, failures chan<- failure) {
-	select {
-	case failures <- *fail:
-	default:
-	}
-}
-
-func (s *publishService) deleteJob(jobID string) error {
+func (s publishService) deleteJob(jobID string) error {
 	theJob, err := s.getJob(jobID)
 	if err != nil {
 		return err
@@ -270,6 +255,20 @@ func (s *publishService) deleteJob(jobID string) error {
 	delete(s.jobs, jobID)
 	s.mutex.Unlock()
 	return nil
+}
+
+func pushToFailures(fail *failure, failures chan<- failure) {
+	select {
+	case failures <- *fail:
+	default:
+	}
+}
+
+
+func fillFailures(fail *failure, count int, failures chan<- failure) {
+	for i := 0; i < count; i++ {
+		pushToFailures(fail, failures)
+	}
 }
 
 func generateID() string {
