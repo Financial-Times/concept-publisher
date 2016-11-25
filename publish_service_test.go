@@ -36,64 +36,64 @@ func TestCreateJob(t *testing.T) {
 		finalBaseUrl   string
 	}{
 		{
-			"http://localhost:8080",
-			"http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
-			"special-reports",
-			[]string{},
-			1,
-			nil,
-			make(map[string]string),
-			"http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			clusterUrl: "http://localhost:8080",
+			baseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			conceptType: "special-reports",
+			ids: []string{},
+			throttle: 1,
+			createErr: nil,
+			idToTID: make(map[string]string),
+			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
 		},
 		{
-			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			"http://somethingelse:8080/__special-reports-transformer/transformers/special-reports",
-			"special-reports",
-			[]string{},
-			1,
-			errors.New(`message="Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/`),
-			make(map[string]string),
-			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/transformers/topics/",
+			clusterUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl: "http://somethingelse:8080/__special-reports-transformer/transformers/special-reports",
+			conceptType: "special-reports",
+			ids: []string{},
+			throttle: 1,
+			createErr: errors.New(`message="Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/`),
+			idToTID: make(map[string]string),
+			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/transformers/topics/",
 		},
 		{
-			"http://localhost:8080",
-			"/__special-reports-transformer/transformers/topics/",
-			"topics",
-			[]string{},
-			1,
-			nil,
-			make(map[string]string),
-			"http://localhost:8080/__special-reports-transformer/transformers/topics/",
+			clusterUrl: "http://localhost:8080",
+			baseUrl: "/__special-reports-transformer/transformers/topics/",
+			conceptType: "topics",
+			ids: []string{},
+			throttle: 1,
+			createErr: nil,
+			idToTID: make(map[string]string),
+			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
 		},
 		{
-			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			"/__topics-transformer/transformers/topics/",
-			"topics",
-			[]string{"1", "2"},
-			1,
-			nil,
-			map[string]string{
+			clusterUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl: "/__topics-transformer/transformers/topics/",
+			conceptType: "topics",
+			ids: []string{"1", "2"},
+			throttle: 1,
+			createErr: nil,
+			idToTID: map[string]string{
 				"1": "",
 				"2": "",
 			},
-			"http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
+			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
 		},
 	}
 	for _, test := range tests {
 		clusterUrl, err := url.Parse(test.clusterUrl)
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		var mockQueueSer queueServiceI = mockedQueueService{}
 		var mockHttpSer httpServiceI = nilHttpService{}
 		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer)
 		baseUrl, err := url.Parse(test.baseUrl)
 		if err != nil {
-			t.Fatalf("unexpected error. %v", err)
+			t.Error(err)
 		}
 		finalBaseUrl, err := url.Parse(test.finalBaseUrl)
 		if err != nil {
-			t.Fatalf("unexpected error. %v", err)
+			t.Error(err)
 		}
 
 		actualJob, err := pubService.createJob(test.ids, *baseUrl, test.throttle)
@@ -103,9 +103,9 @@ func TestCreateJob(t *testing.T) {
 				if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
 					t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.createErr)
 				}
-				return
+				continue
 			}
-			t.Fatalf("unexpected error: %v", err)
+			t.Errorf("unexpected error: %v", err)
 			return
 		}
 		expectedJob := job{
@@ -119,7 +119,7 @@ func TestCreateJob(t *testing.T) {
 			FailedIDs: []string{},
 		}
 		if !reflect.DeepEqual(*actualJob, expectedJob) {
-			t.Fatalf("wrong job. diff got vs want:\n%v\n%v", *actualJob, expectedJob)
+			t.Errorf("wrong job. diff got vs want:\n%v\n%v", *actualJob, expectedJob)
 		}
 	}
 }
@@ -190,7 +190,7 @@ func TestDeleteJob(t *testing.T) {
 				if !strings.HasPrefix(err.Error(), test.deleteErr.Error()) {
 					t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.deleteErr)
 				}
-				return
+				continue
 			}
 			t.Fatalf("unexpected error: %v", err)
 			return
