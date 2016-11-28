@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sync"
 	"time"
+	"reflect"
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
@@ -78,8 +79,10 @@ type publishServiceI interface {
 
 func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (*job, error) {
 	jobID := "job_" + generateID()
-	baseURL.Scheme = s.clusterRouterAddress.Scheme
-	baseURL.Host = s.clusterRouterAddress.Host
+	if (baseURL.Host == "") {
+		baseURL.Scheme = s.clusterRouterAddress.Scheme
+		baseURL.Host = s.clusterRouterAddress.Host
+	}
 	idMap := make(map[string]string)
 	for _, id := range ids {
 		idMap[id] = ""
@@ -160,7 +163,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
 			resolvedID := unmarshalledPayload.UUID
-			if c.id != resolvedID {
+			if !reflect.DeepEqual(c.id,resolvedID) {
 				log.Infof("message=\"initial uuid doesn't match fetched resolved uuid\" originalUuid=%v resolvedUuid=%v jobId=%v", c.id, resolvedID, theJob.JobID)
 			}
 			tid := "tid_" + generateID()
