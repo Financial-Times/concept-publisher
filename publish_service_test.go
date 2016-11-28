@@ -1,13 +1,13 @@
 package main
 
 import (
-	"testing"
+	"errors"
+	"fmt"
 	"net/url"
 	"reflect"
 	"strings"
 	"sync"
-	"errors"
-	"fmt"
+	"testing"
 )
 
 func TestGetJobIds_Empty(t *testing.T) {
@@ -43,62 +43,62 @@ func TestGetJobIds_1(t *testing.T) {
 
 func TestCreateJob(t *testing.T) {
 	tests := []struct {
-		clusterUrl     string
-		baseUrl        string
-		conceptType    string
-		ids            []string
-		throttle       int
-		createErr      error
-		idToTID        map[string]string
-		finalBaseUrl   string
+		clusterUrl   string
+		baseUrl      string
+		conceptType  string
+		ids          []string
+		throttle     int
+		createErr    error
+		idToTID      map[string]string
+		finalBaseUrl string
 	}{
 		{
-			clusterUrl: "http://localhost:8080",
-			baseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
-			conceptType: "special-reports",
-			ids: []string{},
-			throttle: 1,
-			createErr: nil,
-			idToTID: make(map[string]string),
+			clusterUrl:   "http://localhost:8080",
+			baseUrl:      "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			conceptType:  "special-reports",
+			ids:          []string{},
+			throttle:     1,
+			createErr:    nil,
+			idToTID:      make(map[string]string),
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
 		},
 		{
-			clusterUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			baseUrl: "/__special-reports-transformer/transformers/special-reports",
-			conceptType: "special-reports",
-			ids: []string{},
-			throttle: 1,
-			createErr: errors.New(`message="Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/`),
-			idToTID: make(map[string]string),
+			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl:      "/__special-reports-transformer/transformers/special-reports",
+			conceptType:  "special-reports",
+			ids:          []string{},
+			throttle:     1,
+			createErr:    errors.New(`message="Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/`),
+			idToTID:      make(map[string]string),
 			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/topics/",
 		},
 		{
-			clusterUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			baseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
-			conceptType: "special-reports",
-			ids: []string{},
-			throttle: 1,
-			createErr: nil,
-			idToTID: make(map[string]string),
+			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl:      "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
+			conceptType:  "special-reports",
+			ids:          []string{},
+			throttle:     1,
+			createErr:    nil,
+			idToTID:      make(map[string]string),
 			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
 		},
 		{
-			clusterUrl: "http://localhost:8080",
-			baseUrl: "/__special-reports-transformer/transformers/topics/",
-			conceptType: "topics",
-			ids: []string{},
-			throttle: 1,
-			createErr: nil,
-			idToTID: make(map[string]string),
+			clusterUrl:   "http://localhost:8080",
+			baseUrl:      "/__special-reports-transformer/transformers/topics/",
+			conceptType:  "topics",
+			ids:          []string{},
+			throttle:     1,
+			createErr:    nil,
+			idToTID:      make(map[string]string),
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
 		},
 		{
-			clusterUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			baseUrl: "/__topics-transformer/transformers/topics/",
+			clusterUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl:     "/__topics-transformer/transformers/topics/",
 			conceptType: "topics",
-			ids: []string{"1", "2"},
-			throttle: 1,
-			createErr: nil,
+			ids:         []string{"1", "2"},
+			throttle:    1,
+			createErr:   nil,
 			idToTID: map[string]string{
 				"1": "",
 				"2": "",
@@ -125,8 +125,8 @@ func TestCreateJob(t *testing.T) {
 
 		actualJob, err := pubService.createJob(test.ids, *testBaseUrl, test.throttle)
 
-		if (err != nil) {
-			if (test.createErr != nil) {
+		if err != nil {
+			if test.createErr != nil {
 				if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
 					t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.createErr)
 				}
@@ -136,14 +136,14 @@ func TestCreateJob(t *testing.T) {
 			return
 		}
 		expectedJob := job{
-			JobID: actualJob.JobID,
+			JobID:       actualJob.JobID,
 			ConceptType: test.conceptType,
-			IDToTID: test.idToTID,
-			URL: *finalBaseUrl,
-			Throttle: test.throttle,
-			Progress: 0,
-			Status: defined,
-			FailedIDs: []string{},
+			IDToTID:     test.idToTID,
+			URL:         *finalBaseUrl,
+			Throttle:    test.throttle,
+			Progress:    0,
+			Status:      defined,
+			FailedIDs:   []string{},
 		}
 		if !reflect.DeepEqual(*actualJob, expectedJob) {
 			t.Errorf("wrong job. diff got vs want:\n%v\n%v", *actualJob, expectedJob)
@@ -153,46 +153,46 @@ func TestCreateJob(t *testing.T) {
 
 func TestDeleteJob(t *testing.T) {
 	tests := []struct {
-		jobIDToDelete  string
-		jobs           map[string]*job
-		nJobsAfter     int
-		deleteErr      error
+		jobIDToDelete string
+		jobs          map[string]*job
+		nJobsAfter    int
+		deleteErr     error
 	}{
 		{
 			jobIDToDelete: "job_1",
 			jobs: map[string]*job{
 				"job_1": &job{
-					JobID: "job_1",
+					JobID:       "job_1",
 					ConceptType: "special-reports",
-					IDToTID: make(map[string]string),
-					Throttle: 1,
-					Status: completed,
-					FailedIDs: []string{},
+					IDToTID:     make(map[string]string),
+					Throttle:    1,
+					Status:      completed,
+					FailedIDs:   []string{},
 				},
 			},
 			nJobsAfter: 0,
-			deleteErr: nil,
+			deleteErr:  nil,
 		},
 		{
 			jobIDToDelete: "job_1",
 			jobs: map[string]*job{
 				"job_1": &job{
-					JobID: "job_1",
+					JobID:       "job_1",
 					ConceptType: "special-reports",
-					IDToTID: make(map[string]string),
-					Throttle: 1,
-					Status: inProgress,
-					FailedIDs: []string{},
+					IDToTID:     make(map[string]string),
+					Throttle:    1,
+					Status:      inProgress,
+					FailedIDs:   []string{},
 				},
 			},
 			nJobsAfter: 0,
-			deleteErr: errors.New(`message="Job is in progress, locked."`),
+			deleteErr:  errors.New(`message="Job is in progress, locked."`),
 		},
 		{
 			jobIDToDelete: "job_99",
-			jobs: map[string]*job{},
-			nJobsAfter: 0,
-			deleteErr: errors.New(`message="Job not found"`),
+			jobs:          map[string]*job{},
+			nJobsAfter:    0,
+			deleteErr:     errors.New(`message="Job not found"`),
 		},
 	}
 	for _, test := range tests {
@@ -204,16 +204,16 @@ func TestDeleteJob(t *testing.T) {
 		var mockHttpSer httpServiceI = nilHttpService{}
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
-			queueServiceI: &mockQueueSer,
-			mutex: &sync.RWMutex{},
-			jobs: test.jobs,
-			httpService: &mockHttpSer,
+			queueServiceI:        &mockQueueSer,
+			mutex:                &sync.RWMutex{},
+			jobs:                 test.jobs,
+			httpService:          &mockHttpSer,
 		}
 
 		err = pubService.deleteJob(test.jobIDToDelete)
 
-		if (err != nil) {
-			if (test.deleteErr != nil) {
+		if err != nil {
+			if test.deleteErr != nil {
 				if !strings.HasPrefix(err.Error(), test.deleteErr.Error()) {
 					t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.deleteErr)
 				}
@@ -227,8 +227,6 @@ func TestDeleteJob(t *testing.T) {
 		}
 	}
 }
-
-
 
 func TestRunJob(t *testing.T) {
 	tests := []struct {
@@ -250,11 +248,11 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer: allOkQueueService{},
-			idToTID: map[string]string{},
+			queueSer:     allOkQueueService{},
+			idToTID:      map[string]string{},
 			publishedIds: []string{"1", "2"},
-			failedIds: []string{},
-			status: completed,
+			failedIds:    []string{},
+			status:       completed,
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -262,12 +260,12 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			reloadErr: errors.New("Can't reload"),
-			queueSer: allOkQueueService{},
-			idToTID: map[string]string{},
+			reloadErr:    errors.New("Can't reload"),
+			queueSer:     allOkQueueService{},
+			idToTID:      map[string]string{},
 			publishedIds: []string{"1", "2"},
-			failedIds: []string{},
-			status: completed,
+			failedIds:    []string{},
+			status:       completed,
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -275,11 +273,11 @@ func TestRunJob(t *testing.T) {
 				"1": "X1",
 				"2": "X2",
 			},
-			queueSer: allOkQueueService{},
-			idToTID: map[string]string{},
+			queueSer:     allOkQueueService{},
+			idToTID:      map[string]string{},
 			publishedIds: []string{"X1", "X2"},
-			failedIds: []string{},
-			status: completed,
+			failedIds:    []string{},
+			status:       completed,
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -289,13 +287,13 @@ func TestRunJob(t *testing.T) {
 			},
 			idsFailure: &failure{
 				conceptID: "",
-				error: errors.New("Some error in ids."),
+				error:     errors.New("Some error in ids."),
 			},
-			queueSer: allOkQueueService{},
-			idToTID: map[string]string{},
+			queueSer:     allOkQueueService{},
+			idToTID:      map[string]string{},
 			publishedIds: []string{},
-			failedIds: []string{"", ""},
-			status: completed,
+			failedIds:    []string{"", ""},
+			status:       completed,
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -303,11 +301,11 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "\"2",
 			},
-			queueSer: allOkQueueService{},
-			idToTID: map[string]string{},
+			queueSer:     allOkQueueService{},
+			idToTID:      map[string]string{},
 			publishedIds: []string{"1"},
-			failedIds: []string{"2"},
-			status: completed,
+			failedIds:    []string{"2"},
+			status:       completed,
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -322,8 +320,8 @@ func TestRunJob(t *testing.T) {
 				"3": "",
 			},
 			publishedIds: []string{"1", "3"},
-			failedIds: []string{"2"},
-			status: completed,
+			failedIds:    []string{"2"},
+			status:       completed,
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -331,11 +329,11 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer: errQueueService{},
-			idToTID: map[string]string{},
+			queueSer:     errQueueService{},
+			idToTID:      map[string]string{},
 			publishedIds: []string{},
-			failedIds: []string{"1", "2"},
-			status: completed,
+			failedIds:    []string{"1", "2"},
+			status:       completed,
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -345,13 +343,13 @@ func TestRunJob(t *testing.T) {
 			},
 			countFailure: &failure{
 				conceptID: "",
-				error: errors.New("Some error in count."),
+				error:     errors.New("Some error in count."),
 			},
-			queueSer: allOkQueueService{},
-			idToTID: map[string]string{},
+			queueSer:     allOkQueueService{},
+			idToTID:      map[string]string{},
 			publishedIds: []string{},
-			failedIds: []string{},
-			status: failed,
+			failedIds:    []string{},
+			status:       failed,
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -362,11 +360,11 @@ func TestRunJob(t *testing.T) {
 			staticIds: `{"id":"1"}
 			//
 			{"xx":"2"}`,
-			queueSer: allOkQueueService{},
-			idToTID: map[string]string{},
+			queueSer:     allOkQueueService{},
+			idToTID:      map[string]string{},
 			publishedIds: []string{"1"},
-			failedIds: []string{""},
-			status: completed,
+			failedIds:    []string{""},
+			status:       completed,
 		},
 	}
 	for _, test := range tests {
@@ -377,10 +375,10 @@ func TestRunJob(t *testing.T) {
 		var mockQueueSer queueServiceI = test.queueSer
 		var mockHttpSer httpServiceI = definedIdsHttpService{
 			definedToResolvedIs: test.definedIdsToResolvedIds,
-			reloadF: func(string, string) error { return test.reloadErr },
-			idsFailure: test.idsFailure,
-			countFailure: test.countFailure,
-			staticIds: test.staticIds,
+			reloadF:             func(string, string) error { return test.reloadErr },
+			idsFailure:          test.idsFailure,
+			countFailure:        test.countFailure,
+			staticIds:           test.staticIds,
 		}
 		if err != nil {
 			t.Fatalf("unexpected error. %v", err)
@@ -390,19 +388,19 @@ func TestRunJob(t *testing.T) {
 			t.Fatalf("unexpected error. %v", err)
 		}
 		oneJob := &job{
-			JobID: "job_1",
-			URL: *testBaseUrl,
+			JobID:       "job_1",
+			URL:         *testBaseUrl,
 			ConceptType: "topics",
-			IDToTID: test.idToTID,
-			Throttle: 0,
-			Status: defined,
-			FailedIDs: []string{},
+			IDToTID:     test.idToTID,
+			Throttle:    0,
+			Status:      defined,
+			FailedIDs:   []string{},
 		}
 
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
-			queueServiceI: &mockQueueSer,
-			mutex: &sync.RWMutex{},
+			queueServiceI:        &mockQueueSer,
+			mutex:                &sync.RWMutex{},
 			jobs: map[string]*job{
 				"job_1": oneJob,
 			},
@@ -435,13 +433,13 @@ func TestRunJob(t *testing.T) {
 	}
 }
 
-type allOkQueueService struct {}
+type allOkQueueService struct{}
 
 func (q allOkQueueService) sendMessage(id string, conceptType string, tid string, payload []byte) error {
 	return nil
 }
 
-type errQueueService struct {}
+type errQueueService struct{}
 
 func (q errQueueService) sendMessage(id string, conceptType string, tid string, payload []byte) error {
 	return errors.New("Couldn't send because test.")
@@ -470,7 +468,7 @@ func (h mockedHttpService) fetchConcept(conceptID string, url string, authorizat
 	return h.fetchConceptF(conceptID, url, authorization)
 }
 
-type nilHttpService struct {}
+type nilHttpService struct{}
 
 func (h nilHttpService) reload(url string, authorization string) error {
 	return nil
@@ -530,6 +528,6 @@ func (h definedIdsHttpService) fetchConcept(id string, url string, auth string) 
 	}
 	return []byte{}, &failure{
 		conceptID: id,
-		error: fmt.Errorf("Requested something that shouldn't have: %s", id),
+		error:     fmt.Errorf("Requested something that shouldn't have: %s", id),
 	}
 }

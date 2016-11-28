@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
@@ -8,11 +9,10 @@ import (
 	"io"
 	"math/rand"
 	"net/url"
+	"reflect"
 	"regexp"
 	"sync"
 	"time"
-	"reflect"
-	"bufio"
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
@@ -80,7 +80,7 @@ type publishServiceI interface {
 
 func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (*job, error) {
 	jobID := "job_" + generateID()
-	if (baseURL.Host == "") {
+	if baseURL.Host == "" {
 		baseURL.Scheme = s.clusterRouterAddress.Scheme
 		baseURL.Host = s.clusterRouterAddress.Host
 	}
@@ -133,14 +133,14 @@ func (p publishService) runJob(theJob *job, authorization string) {
 	theJob.Status = inProgress
 	concepts := make(chan concept, loadBuffer)
 	failures := make(chan failure, loadBuffer)
-	err := (*p.httpService).reload(theJob.URL.String() + reloadSuffix, authorization)
+	err := (*p.httpService).reload(theJob.URL.String()+reloadSuffix, authorization)
 	if err != nil {
 		log.Infof("message=\"Couldn't reload concepts\" conceptType=\"%s\" %v", theJob.ConceptType, err)
 	}
 	if len(theJob.IDToTID) > 0 {
 		theJob.Count = len(theJob.IDToTID)
 	} else {
-		theJob.Count, err = (*p.httpService).getCount(theJob.URL.String() + countSuffix, authorization)
+		theJob.Count, err = (*p.httpService).getCount(theJob.URL.String()+countSuffix, authorization)
 		if err != nil {
 			log.Warnf("message=\"Could not determine count for concepts. Job failed.\" conceptType=\"%s\" %v", theJob.ConceptType, err)
 			theJob.Status = failed
@@ -164,7 +164,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
 			resolvedID := unmarshalledPayload.UUID
-			if !reflect.DeepEqual(c.id,resolvedID) {
+			if !reflect.DeepEqual(c.id, resolvedID) {
 				log.Infof("message=\"initial uuid doesn't match fetched resolved uuid\" originalUuid=%v resolvedUuid=%v jobId=%v", c.id, resolvedID, theJob.JobID)
 			}
 			tid := "tid_" + generateID()
@@ -202,7 +202,7 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 }
 
 func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<- string, failures chan<- failure) {
-	body, fail := (*p.httpService).getIds(theJob.URL.String() + idsSuffix, authorization)
+	body, fail := (*p.httpService).getIds(theJob.URL.String()+idsSuffix, authorization)
 	if fail != nil {
 		fillFailures(fail, theJob.Count, failures)
 		return
@@ -240,10 +240,10 @@ func (p publishService) fetchConcepts(theJob *job, authorization string, concept
 		if !ok {
 			break
 		}
-		if (theJob.Throttle > 0) {
+		if theJob.Throttle > 0 {
 			<-ticker.C
 		}
-		data, fail := (*p.httpService).fetchConcept(id, theJob.URL.String() + id, authorization)
+		data, fail := (*p.httpService).fetchConcept(id, theJob.URL.String()+id, authorization)
 		if fail != nil {
 			pushToFailures(fail, failures)
 			continue
@@ -272,7 +272,6 @@ func pushToFailures(fail *failure, failures chan<- failure) {
 	default:
 	}
 }
-
 
 func fillFailures(fail *failure, count int, failures chan<- failure) {
 	for i := 0; i < count; i++ {

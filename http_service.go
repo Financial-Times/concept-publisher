@@ -1,10 +1,10 @@
 package main
 
 import (
-	"net/http"
-	"strconv"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"strconv"
 )
 
 type httpService struct {

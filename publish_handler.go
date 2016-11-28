@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
@@ -9,7 +10,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"bytes"
 )
 
 type publishHandler struct {
