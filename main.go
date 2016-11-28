@@ -31,7 +31,7 @@ func main() {
 	})
 	topic := app.String(cli.StringOpt{
 		Name:   "destination-topic",
-		Value:  "NativeCmsMetadataPublicationEvents",
+		Value:  "Concepts",
 		Desc:   "The topic to write the V1 metadata to. (e.g. Concepts)",
 		EnvVar: "TOPIC",
 	})
