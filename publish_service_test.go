@@ -25,6 +25,22 @@ func TestGetJobIds_Empty(t *testing.T) {
 	}
 }
 
+func TestGetJobIds_1(t *testing.T) {
+	pubService := publishService{
+		jobs: map[string]*job{
+			"job_1": &job{
+				JobID: "job_1",
+			},
+		},
+		mutex: &sync.RWMutex{},
+	}
+	actualIds := pubService.getJobIds()
+	expectedIds := []string{"job_1"}
+	if !reflect.DeepEqual(actualIds, expectedIds) {
+		t.Errorf("wrong ids list: got %v want %v", actualIds, expectedIds)
+	}
+}
+
 func TestCreateJob(t *testing.T) {
 	tests := []struct {
 		clusterUrl     string
@@ -220,6 +236,7 @@ func TestRunJob(t *testing.T) {
 		definedIdsToResolvedIds map[string]string
 		reloadErr               error
 		idsFailure              *failure
+		staticIds               string
 		countFailure            *failure
 		queueSer                queueServiceI
 		idToTID                 map[string]string
@@ -233,8 +250,6 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			reloadErr: nil,
-			idsFailure: nil,
 			queueSer: allOkQueueService{},
 			idToTID: map[string]string{},
 			publishedIds: []string{"1", "2"},
@@ -248,7 +263,6 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			reloadErr: errors.New("Can't reload"),
-			idsFailure: nil,
 			queueSer: allOkQueueService{},
 			idToTID: map[string]string{},
 			publishedIds: []string{"1", "2"},
@@ -261,8 +275,6 @@ func TestRunJob(t *testing.T) {
 				"1": "X1",
 				"2": "X2",
 			},
-			reloadErr: nil,
-			idsFailure: nil,
 			queueSer: allOkQueueService{},
 			idToTID: map[string]string{},
 			publishedIds: []string{"X1", "X2"},
@@ -275,7 +287,6 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			reloadErr: nil,
 			idsFailure: &failure{
 				conceptID: "",
 				error: errors.New("Some error in ids."),
@@ -292,8 +303,6 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "\"2",
 			},
-			reloadErr: nil,
-			idsFailure: nil,
 			queueSer: allOkQueueService{},
 			idToTID: map[string]string{},
 			publishedIds: []string{"1"},
@@ -306,8 +315,6 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"3": "3",
 			},
-			reloadErr: nil,
-			idsFailure: nil,
 			queueSer: allOkQueueService{},
 			idToTID: map[string]string{
 				"1": "",
@@ -324,8 +331,6 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			reloadErr: nil,
-			idsFailure: nil,
 			queueSer: errQueueService{},
 			idToTID: map[string]string{},
 			publishedIds: []string{},
@@ -348,6 +353,21 @@ func TestRunJob(t *testing.T) {
 			failedIds: []string{},
 			status: failed,
 		},
+		{
+			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			definedIdsToResolvedIds: map[string]string{
+				"1": "1",
+				"2": "2",
+			},
+			staticIds: `{"id":"1"}
+			//
+			{"xx":"2"}`,
+			queueSer: allOkQueueService{},
+			idToTID: map[string]string{},
+			publishedIds: []string{"1"},
+			failedIds: []string{""},
+			status: completed,
+		},
 	}
 	for _, test := range tests {
 		clusterUrl, err := url.Parse("http://ip-172-24-158-162.eu-west-1.compute.internal:8080")
@@ -360,6 +380,7 @@ func TestRunJob(t *testing.T) {
 			reloadF: func(string, string) error { return test.reloadErr },
 			idsFailure: test.idsFailure,
 			countFailure: test.countFailure,
+			staticIds: test.staticIds,
 		}
 		if err != nil {
 			t.Fatalf("unexpected error. %v", err)
@@ -471,6 +492,7 @@ type definedIdsHttpService struct {
 	definedToResolvedIs map[string]string
 	reloadF             func(string, string) error
 	idsFailure          *failure
+	staticIds           string
 	countFailure        *failure
 }
 
@@ -488,6 +510,9 @@ func (h definedIdsHttpService) getCount(url string, authorization string) (int, 
 func (h definedIdsHttpService) getIds(url string, authorization string) ([]byte, *failure) {
 	if h.idsFailure != nil {
 		return nil, h.idsFailure
+	}
+	if h.staticIds != "" {
+		return []byte(h.staticIds), nil
 	}
 	allIdsResp := ""
 	for definedId := range h.definedToResolvedIs {

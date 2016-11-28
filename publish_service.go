@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 	"reflect"
+	"bufio"
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
@@ -193,7 +194,7 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 			close(idsChan)
 		}()
 	} else {
-		go s.fetchIDList(theJob, authorization, idsChan, failures)
+		s.fetchIDList(theJob, authorization, idsChan, failures)
 	}
 	for i := 0; i < concurrentReaders; i++ {
 		go s.fetchConcepts(theJob, authorization, concepts, idsChan, failures, ticker)
@@ -206,19 +207,27 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 		fillFailures(fail, theJob.Count, failures)
 		return
 	}
-	type listEntry struct {
-		ID string `json:"id"`
-	}
-	var le listEntry
-	dec := json.NewDecoder(bytes.NewReader(body))
+	reader := bufio.NewReader(bytes.NewReader(body))
 	for {
-		err := dec.Decode(&le)
+		line, err := reader.ReadBytes('\n')
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			fail := newFailure("", fmt.Errorf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL.String(), err))
+			log.Warnf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL.String(), err)
+			continue
+		}
+		reader2 := bufio.NewReader(bytes.NewReader(line))
+		type listEntry struct {
+			ID string `json:"id"`
+		}
+		var le listEntry
+		dec := json.NewDecoder(reader2)
+		err2 := dec.Decode(&le)
+		if err2 != nil {
+			fail := newFailure("", fmt.Errorf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL.String(), err2))
 			pushToFailures(fail, failures)
+			continue
 		}
 		ids <- le.ID
 	}
