@@ -187,7 +187,7 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 	idsChan := make(chan string, loadBuffer)
 	if len(theJob.IDToTID) > 0 {
 		go func() {
-			for _, id := range theJob.IDToTID {
+			for id := range theJob.IDToTID {
 				idsChan <- id
 			}
 			close(idsChan)

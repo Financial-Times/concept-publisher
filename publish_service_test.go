@@ -219,8 +219,11 @@ func TestRunJob(t *testing.T) {
 		baseURL                 string
 		definedIdsToResolvedIds map[string]string
 		reloadErr               error
+		idsFailure              *failure
 		queueSer                queueServiceI
 		idToTID                 map[string]string
+		publishedIds            []string
+		failedIds               []string
 	}{
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -229,10 +232,13 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			reloadErr: nil,
+			idsFailure: nil,
 			queueSer: checkingQueueService{
 				idsSent: []string{},
 			},
 			idToTID: map[string]string{},
+			publishedIds: []string{"1", "2"},
+			failedIds: []string{},
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -241,10 +247,13 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			reloadErr: errors.New("Can't reload"),
+			idsFailure: nil,
 			queueSer: checkingQueueService{
 				idsSent: []string{},
 			},
 			idToTID: map[string]string{},
+			publishedIds: []string{"1", "2"},
+			failedIds: []string{},
 		},
 		{
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
@@ -253,10 +262,65 @@ func TestRunJob(t *testing.T) {
 				"2": "X2",
 			},
 			reloadErr: nil,
+			idsFailure: nil,
 			queueSer: checkingQueueService{
 				idsSent: []string{},
 			},
 			idToTID: map[string]string{},
+			publishedIds: []string{"X1", "X2"},
+			failedIds: []string{},
+		},
+		{
+			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			definedIdsToResolvedIds: map[string]string{
+				"1": "1",
+				"2": "2",
+			},
+			reloadErr: nil,
+			idsFailure: &failure{
+				conceptID: "",
+				error: errors.New("Some error in ids."),
+			},
+			queueSer: checkingQueueService{
+				idsSent: []string{},
+			},
+			idToTID: map[string]string{},
+			publishedIds: []string{},
+			failedIds: []string{"", ""},
+		},
+		{
+			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			definedIdsToResolvedIds: map[string]string{
+				"1": "1",
+				"2": "\"2",
+			},
+			reloadErr: nil,
+			idsFailure: nil,
+			queueSer: checkingQueueService{
+				idsSent: []string{},
+			},
+			idToTID: map[string]string{},
+			publishedIds: []string{"1"},
+			failedIds: []string{"2"},
+		},
+		{
+			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			definedIdsToResolvedIds: map[string]string{
+				"1": "1",
+				"3": "3",
+			},
+			reloadErr: nil,
+			idsFailure: nil,
+			queueSer: checkingQueueService{
+				idsSent: []string{},
+			},
+			idToTID: map[string]string{
+				"1": "",
+				"2": "",
+				"3": "",
+			},
+			publishedIds: []string{"1", "3"},
+			failedIds: []string{"2"},
 		},
 	}
 	for _, test := range tests {
@@ -268,6 +332,7 @@ func TestRunJob(t *testing.T) {
 		var mockHttpSer httpServiceI = definedIdsHttpService{
 			definedToResolvedIs: test.definedIdsToResolvedIds,
 			reloadF: func(string, string) error { return test.reloadErr },
+			idsFailure: test.idsFailure,
 		}
 		if err != nil {
 			t.Fatalf("unexpected error. %v", err)
@@ -296,10 +361,24 @@ func TestRunJob(t *testing.T) {
 			httpService: &mockHttpSer,
 		}
 		pubService.runJob(oneJob, "Basic 1234")
-		for definedId := range test.definedIdsToResolvedIds {
-			_, ok := oneJob.IDToTID[test.definedIdsToResolvedIds[definedId]]
+		var found bool
+		for _, failedId := range test.failedIds {
+			found = false
+			for _, actualFailedId := range oneJob.FailedIDs {
+				if reflect.DeepEqual(failedId, actualFailedId) {
+					found = true
+					break
+				}
+
+			}
+			if !found {
+				t.Errorf("Expected failed id %v couldn't be found in actual failures", failedId)
+			}
+		}
+		for _, expectedPublishedId := range test.publishedIds {
+			_, ok := oneJob.IDToTID[expectedPublishedId]
 			if !ok {
-				t.Errorf("id %s didn't publish", definedId)
+				t.Errorf("id %s didn't publish", expectedPublishedId)
 			}
 		}
 		if oneJob.Status != completed {
@@ -367,6 +446,7 @@ func (h nilHttpService) fetchConcept(conceptID string, url string, authorization
 type definedIdsHttpService struct {
 	definedToResolvedIs map[string]string
 	reloadF             func(string, string) error
+	idsFailure          *failure
 }
 
 func (h definedIdsHttpService) reload(url string, authorization string) error {
@@ -378,6 +458,9 @@ func (h definedIdsHttpService) getCount(url string, authorization string) (int, 
 }
 
 func (h definedIdsHttpService) getIds(url string, authorization string) ([]byte, *failure) {
+	if h.idsFailure != nil {
+		return nil, h.idsFailure
+	}
 	allIdsResp := ""
 	for definedId := range h.definedToResolvedIs {
 		allIdsResp += fmt.Sprintf("{\"id\":\"%s\"}\n", definedId)
@@ -392,6 +475,7 @@ func (h definedIdsHttpService) fetchConcept(id string, url string, auth string) 
 		}
 
 	}
+	fmt.Printf("hiii errror\n")
 	return []byte{}, &failure{
 		conceptID: id,
 		error: fmt.Errorf("Requested something that shouldn't have: %s", id),
