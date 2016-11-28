@@ -26,7 +26,7 @@ export CLUSTER_ROUTER_ADDRESS="http://localhost:8083"
 
 ### /jobs
 
-Return all the jobs' ids:
+Return all the jobs' ids.
 
 ### GET /jobs/{id}
 
@@ -34,19 +34,19 @@ Get detailed job status, should it be in progress, completed or failed.
 
 ### POST /jobs
 
-concept: organisations, people, subjects, locations...
-
 * url: url to use to get the transformed concept
-  * can either be absolute of relative - for relative the base url is CLUSTER_ROUTER_ADDRESS
-  * {url}/__ids that lists the identities of the resources in the form '{"id":"abc"}\n{"id":"123"}'
-  * {url}/{uid} that returns the transformed concept in UPP json format
+  * can either be absolute of relative - for relative the base url is the CLUSTER_ROUTER_ADDRESS
   * {url}/__count returns the number of concepts
-* ids (optional): list if ids to publish - if the list is not empty ids will not be looked up via __ids endpoint on the transformer and only the uuids from the list will be published
+  * {url}/__ids that lists the identities of the resources in the form '{"id":"abc"}\n{"id":"def"}'
+  * {url}/{uid} that returns the transformed concept in UPP json format
+* ids (optional): list if ids to publish - if the list is not empty ids will not be looked up via the __ids endpoint on the transformer and only the uuids from the list will be published
 * throttle: no of req/s when calling the transformers to get transformed content
-* authorization: authorization credentials if necessary - optional
+* authorization (optional)
 
 Examples:
 
-`curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","url": "/__composite-orgs-transformer/transformers/organisations/", "throttle": 1000, "authorization": "Basic base64user:pass"}'`
+```
+curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","url": "/__composite-orgs-transformer/transformers/organisations/", "throttle": 1000, "authorization": "Basic base64user:pass"}'
    
-`curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","ids":["uuid1","uuid2"],"url": "http://specific-ftp2-host.ft.com/organisations/", "throttle": 1000, "authorization": "Basic base64user:pass"}'`
+curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"concept":"organisations","ids":["uuid1","uuid2"],"url": "http://specific-ftp2-host.ft.com/organisations/", "throttle": 1000}'
+```
