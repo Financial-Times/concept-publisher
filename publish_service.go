@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/golang/go/src/pkg/bytes"
+	"bytes"
 	"io"
 	"math/rand"
 	"net/url"
