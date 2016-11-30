@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 )
 
@@ -32,7 +31,6 @@ func TestGetJobIds_1(t *testing.T) {
 				JobID: "job_1",
 			},
 		},
-		mutex: &sync.RWMutex{},
 	}
 	actualIds := pubService.getJobIds()
 	expectedIds := []string{"job_1"}
@@ -205,7 +203,6 @@ func TestDeleteJob(t *testing.T) {
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
 			queueServiceI:        &mockQueueSer,
-			mutex:                &sync.RWMutex{},
 			jobs:                 test.jobs,
 			httpService:          &mockHttpSer,
 		}
@@ -230,6 +227,7 @@ func TestDeleteJob(t *testing.T) {
 
 func TestRunJob(t *testing.T) {
 	tests := []struct {
+		name                    string
 		baseURL                 string
 		definedIdsToResolvedIds map[string]string
 		reloadErr               error
@@ -243,6 +241,7 @@ func TestRunJob(t *testing.T) {
 		status                  string
 	}{
 		{
+			name:    "one",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -255,6 +254,7 @@ func TestRunJob(t *testing.T) {
 			status:       completed,
 		},
 		{
+			name:    "two",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -268,6 +268,7 @@ func TestRunJob(t *testing.T) {
 			status:       completed,
 		},
 		{
+			name:    "three",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "X1",
@@ -280,6 +281,7 @@ func TestRunJob(t *testing.T) {
 			status:       completed,
 		},
 		{
+			name:    "four",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -296,6 +298,7 @@ func TestRunJob(t *testing.T) {
 			status:       completed,
 		},
 		{
+			name:    "five",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -308,6 +311,7 @@ func TestRunJob(t *testing.T) {
 			status:       completed,
 		},
 		{
+			name:    "six",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -324,6 +328,7 @@ func TestRunJob(t *testing.T) {
 			status:       completed,
 		},
 		{
+			name:    "seven",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -336,6 +341,7 @@ func TestRunJob(t *testing.T) {
 			status:       completed,
 		},
 		{
+			name:    "eight",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -352,6 +358,7 @@ func TestRunJob(t *testing.T) {
 			status:       failed,
 		},
 		{
+			name:    "nine",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -368,6 +375,7 @@ func TestRunJob(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		//t.Run(fmt.Sprintf("Running: %s", test.name), func(t *testing.T) {
 		clusterUrl, err := url.Parse("http://ip-172-24-158-162.eu-west-1.compute.internal:8080")
 		if err != nil {
 			t.Fatal(err)
@@ -375,10 +383,12 @@ func TestRunJob(t *testing.T) {
 		var mockQueueSer queueServiceI = test.queueSer
 		var mockHttpSer httpServiceI = definedIdsHttpService{
 			definedToResolvedIs: test.definedIdsToResolvedIds,
-			reloadF:             func(string, string) error { return test.reloadErr },
-			idsFailure:          test.idsFailure,
-			countFailure:        test.countFailure,
-			staticIds:           test.staticIds,
+			reloadF: func(string, string) error {
+				return test.reloadErr
+			},
+			idsFailure:   test.idsFailure,
+			countFailure: test.countFailure,
+			staticIds:    test.staticIds,
 		}
 		if err != nil {
 			t.Fatalf("unexpected error. %v", err)
@@ -400,7 +410,6 @@ func TestRunJob(t *testing.T) {
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
 			queueServiceI:        &mockQueueSer,
-			mutex:                &sync.RWMutex{},
 			jobs: map[string]*job{
 				"job_1": oneJob,
 			},
@@ -430,6 +439,7 @@ func TestRunJob(t *testing.T) {
 		if oneJob.Status != test.status {
 			t.Errorf("bad status. got %s, want %s", oneJob.Status, test.status)
 		}
+		//})
 	}
 }
 

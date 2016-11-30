@@ -16,13 +16,6 @@ type publishHandler struct {
 	publishService *publishServiceI
 }
 
-type createJobRequest struct {
-	URL           string   `json:"url"`
-	Throttle      int      `json:"throttle"`
-	Authorization string   `json:"authorization"`
-	IDS           []string `json:"ids"`
-}
-
 func newPublishHandler(publishService *publishServiceI) publishHandler {
 	return publishHandler{publishService: publishService}
 }
@@ -95,6 +88,8 @@ func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
+	status.RLock()
+	defer status.RUnlock()
 	if err := enc.Encode(status); err != nil {
 		log.Errorf("message=\"Error on json encoding\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

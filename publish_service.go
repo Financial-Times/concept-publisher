@@ -2,10 +2,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"bytes"
 	"io"
 	"math/rand"
 	"net/url"
@@ -15,33 +15,23 @@ import (
 	"time"
 )
 
-const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
-const loadBuffer = 128
-const concurrentReaders = 128
 const (
+	messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
+	loadBuffer                 = 128
+	concurrentReaders          = 128
+
 	defined    = "Defined"
 	inProgress = "Defined"
 	completed  = "Completed"
 	failed     = "Failed"
+
+	reloadSuffix = "__reload"
+	idsSuffix    = "__ids"
+	countSuffix  = "__count"
 )
-const reloadSuffix = "__reload"
-const idsSuffix = "__ids"
-const countSuffix = "__count"
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-var conceptTypeRegex, _ = regexp.Compile(`/([\w\-]+)/$`)
-
-type job struct {
-	JobID       string            `json:"jobID"`
-	ConceptType string            `json:"conceptType"`
-	IDToTID     map[string]string `json:"IDToTID,omitempty"`
-	URL         url.URL           `json:"url"`
-	Throttle    int               `json:"throttle"`
-	Count       int               `json:"count"`
-	Progress    int               `json:"progress"`
-	Status      string            `json:"status"`
-	FailedIDs   []string          `json:"failedIDs"`
-}
+var conceptTypeRegex = regexp.MustCompile(`/([\w\-]+)/$`)
 
 func (j job) String() string {
 	return fmt.Sprintf("conceptType=%s url=%v count=%d throttle=%d status=%s progress=%d", j.ConceptType, j.URL, j.Count, j.Throttle, j.Status, j.Progress)
@@ -53,9 +43,9 @@ type concept struct {
 }
 
 type publishService struct {
+	sync.RWMutex
 	clusterRouterAddress *url.URL
 	queueServiceI        *queueServiceI
-	mutex                *sync.RWMutex //protects jobs
 	jobs                 map[string]*job
 	httpService          *httpServiceI
 }
@@ -64,7 +54,6 @@ func newPublishService(clusterRouterAddress *url.URL, queueSer *queueServiceI, h
 	return publishService{
 		clusterRouterAddress: clusterRouterAddress,
 		queueServiceI:        queueSer,
-		mutex:                &sync.RWMutex{},
 		jobs:                 make(map[string]*job),
 		httpService:          httpSer,
 	}
@@ -102,53 +91,57 @@ func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (
 		Status:      defined,
 		FailedIDs:   []string{},
 	}
-	s.mutex.Lock()
+	s.Lock()
+	defer s.Unlock()
 	s.jobs[jobID] = theJob
-	s.mutex.Unlock()
 	log.Infof("message=\"Created job\" jobID=%s", theJob.JobID)
 	return theJob, nil
 }
 
 func (s publishService) getJob(jobID string) (*job, error) {
-	s.mutex.RLock()
+	s.RLock()
+	defer s.RUnlock()
 	job, ok := s.jobs[jobID]
 	if !ok {
 		return nil, newNotFoundError(jobID)
 	}
-	s.mutex.RUnlock()
 	return job, nil
 }
 
 func (s publishService) getJobIds() []string {
 	jobIds := []string{}
-	s.mutex.RLock()
+	s.RLock()
+	defer s.RUnlock()
 	for _, j := range s.jobs {
+		j.RLock()
 		jobIds = append(jobIds, j.JobID)
+		j.RUnlock()
 	}
-	s.mutex.RUnlock()
 	return jobIds
 }
 
 func (p publishService) runJob(theJob *job, authorization string) {
-	theJob.Status = inProgress
+	theJob.updateStatus(inProgress)
 	concepts := make(chan concept, loadBuffer)
 	failures := make(chan failure, loadBuffer)
 	err := (*p.httpService).reload(theJob.URL.String()+reloadSuffix, authorization)
 	if err != nil {
 		log.Infof("message=\"Couldn't reload concepts\" conceptType=\"%s\" %v", theJob.ConceptType, err)
 	}
+	var jobCount int
 	if len(theJob.IDToTID) > 0 {
-		theJob.Count = len(theJob.IDToTID)
+		jobCount = len(theJob.IDToTID)
 	} else {
-		theJob.Count, err = (*p.httpService).getCount(theJob.URL.String()+countSuffix, authorization)
+		jobCount, err = (*p.httpService).getCount(theJob.URL.String()+countSuffix, authorization)
 		if err != nil {
 			log.Warnf("message=\"Could not determine count for concepts. Job failed.\" conceptType=\"%s\" %v", theJob.ConceptType, err)
-			theJob.Status = failed
+			theJob.updateStatus(failed)
 			return
 		}
 	}
+	theJob.updateCount(jobCount)
 	go p.fetchAll(theJob, authorization, concepts, failures)
-	for theJob.Progress = 0; theJob.Progress < theJob.Count; theJob.Progress++ {
+	for theJob.Progress = 0; theJob.Progress < jobCount; theJob.updateProgress() {
 		select {
 		case f := <-failures:
 			log.Warnf("message=\"failure at a concept, in a job\" jobID=%v conceptID=%v %v", theJob.JobID, f.conceptID, f.error)
@@ -168,15 +161,20 @@ func (p publishService) runJob(theJob *job, authorization string) {
 				log.Infof("message=\"initial uuid doesn't match fetched resolved uuid\" originalUuid=%v resolvedUuid=%v jobId=%v", c.id, resolvedID, theJob.JobID)
 			}
 			tid := "tid_" + generateID()
+
+			// lock job to update
+			theJob.Lock()
 			theJob.IDToTID[resolvedID] = tid
 			err := (*p.queueServiceI).sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
 			if err != nil {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
+			theJob.Unlock()
 		}
 	}
-	theJob.Status = completed
+
+	theJob.updateStatus(completed)
 	log.Infof("message=\"Completed job\" jobID=%s status=%s nFailedIds=%d", theJob.JobID, theJob.Status, len(theJob.FailedIDs))
 }
 
@@ -188,6 +186,8 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 	idsChan := make(chan string, loadBuffer)
 	if len(theJob.IDToTID) > 0 {
 		go func() {
+			theJob.RLock()
+			defer theJob.RUnlock()
 			for id := range theJob.IDToTID {
 				idsChan <- id
 			}
@@ -257,12 +257,14 @@ func (s publishService) deleteJob(jobID string) error {
 	if err != nil {
 		return err
 	}
+	theJob.RLock()
+	defer theJob.RUnlock()
 	if (theJob.Status != completed) && (theJob.Status != failed) && (theJob.Status != defined) {
 		return newConflictError(jobID)
 	}
-	s.mutex.Lock()
+	s.Lock()
+	defer s.Unlock()
 	delete(s.jobs, jobID)
-	s.mutex.Unlock()
 	return nil
 }
 
