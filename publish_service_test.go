@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGetJobIds_Empty(t *testing.T) {
@@ -229,6 +230,7 @@ func TestRunJob(t *testing.T) {
 	tests := []struct {
 		name                    string
 		baseURL                 string
+		throttle                int
 		definedIdsToResolvedIds map[string]string
 		reloadErr               error
 		idsFailure              *failure
@@ -373,6 +375,20 @@ func TestRunJob(t *testing.T) {
 			failedIds:    []string{""},
 			status:       completed,
 		},
+		{
+			name:    "throttle",
+			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			throttle: 10,
+			definedIdsToResolvedIds: map[string]string{
+				"1": "1",
+				"2": "2",
+			},
+			queueSer:     allOkQueueService{},
+			idToTID:      map[string]string{},
+			publishedIds: []string{"1", "2"},
+			failedIds:    []string{},
+			status:       completed,
+		},
 	}
 	for _, test := range tests {
 		//t.Run(fmt.Sprintf("Running: %s", test.name), func(t *testing.T) {
@@ -402,7 +418,7 @@ func TestRunJob(t *testing.T) {
 			URL:         *testBaseUrl,
 			ConceptType: "topics",
 			IDToTID:     test.idToTID,
-			Throttle:    0,
+			Throttle:    test.throttle,
 			Status:      defined,
 			FailedIDs:   []string{},
 		}
@@ -416,6 +432,9 @@ func TestRunJob(t *testing.T) {
 			httpService: &mockHttpSer,
 		}
 		pubService.runJob(oneJob, "Basic 1234")
+		if test.throttle > 0 {
+			time.Sleep(time.Millisecond * time.Duration(int(1000 * float64(len(test.publishedIds)) / float64(test.throttle))))
+		}
 		var found bool
 		for _, failedId := range test.failedIds {
 			found = false
