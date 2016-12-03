@@ -433,7 +433,7 @@ func TestRunJob(t *testing.T) {
 		}
 		pubService.runJob(oneJob, "Basic 1234")
 		if test.throttle > 0 {
-			time.Sleep(time.Millisecond * time.Duration(int(1000 * float64(len(test.publishedIds)) / float64(test.throttle))))
+			time.Sleep(time.Millisecond * (500 + time.Duration(int(1000 * float64(len(test.publishedIds) + len(test.failedIds)) / float64(test.throttle)))))
 		}
 		var found bool
 		for _, failedId := range test.failedIds {
