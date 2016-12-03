@@ -14,18 +14,6 @@ func (e notFoundError) Error() string {
 	return e.msg
 }
 
-type conflictError struct {
-	msg string
-}
-
-func newConflictError(jobID string) *conflictError {
-	return &conflictError{msg: fmt.Sprintf("message=\"Job is in progress, locked.\" jobId=%s", jobID)}
-}
-
-func (e conflictError) Error() string {
-	return e.msg
-}
-
 type failure struct {
 	conceptID string
 	error     error

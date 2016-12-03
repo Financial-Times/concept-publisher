@@ -253,14 +253,9 @@ func (p publishService) fetchConcepts(theJob *job, authorization string, concept
 }
 
 func (s publishService) deleteJob(jobID string) error {
-	theJob, err := s.getJob(jobID)
+	_, err := s.getJob(jobID)
 	if err != nil {
 		return err
-	}
-	theJob.RLock()
-	defer theJob.RUnlock()
-	if (theJob.Status != completed) && (theJob.Status != failed) && (theJob.Status != defined) {
-		return newConflictError(jobID)
 	}
 	s.Lock()
 	defer s.Unlock()

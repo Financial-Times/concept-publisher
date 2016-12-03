@@ -117,10 +117,6 @@ func (h publishHandler) deleteJob(w http.ResponseWriter, r *http.Request) {
 		if ok {
 			code = http.StatusNotFound
 		}
-		_, ok = err.(*conflictError)
-		if ok {
-			code = http.StatusConflict
-		}
 		log.Infof("message=\"Error deleting job\" %v\n", err)
 		http.Error(w, err.Error(), code)
 		return
