@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"github.com/golang/go/src/pkg/bytes"
+	"github.com/pkg/errors"
 )
 
 func TestHandlerCreateJob(t *testing.T) {
@@ -21,7 +22,7 @@ func TestHandlerCreateJob(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:           "missing fields",
+			name:           "illegal url",
 			httpBody:       `{"url":""}`,
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -32,6 +33,14 @@ func TestHandlerCreateJob(t *testing.T) {
 				return &job{JobID: "1"}, nil
 			},
 			expectedStatus: http.StatusCreated,
+		},
+		{
+			name:           "error at subsequent call",
+			httpBody:       `{"url":"/__topics-transformer/transformers/topics", throttle: 100}`,
+			createJobF:     func (ids []string, baseURL url.URL, throttle int) (*job, error) {
+				return nil, errors.New("error creating job because of something")
+			},
+			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
