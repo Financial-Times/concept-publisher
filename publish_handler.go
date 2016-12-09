@@ -29,27 +29,21 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&jobRequest); err != nil {
 		err := fmt.Sprintf("Invalid payload: (%v)", err)
-		log.Errorf(err)
+		log.Warn(err)
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
 	log.Infof("message=\"Concept publish request received\" %v", jobRequest)
 	if jobRequest.URL == "" {
 		err := "Base url empty"
-		log.Errorf(err)
+		log.Warn(err)
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
 	url, err := url.Parse(jobRequest.URL)
 	if err != nil {
-		log.Errorf("Invalid url: %v (%v)", jobRequest.URL, err)
+		log.Warn("Invalid url: %v (%v)", jobRequest.URL, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if jobRequest.Throttle < 1 {
-		err := fmt.Sprintf("Invalid throttle: %v", jobRequest.Throttle)
-		log.Errorf(err)
-		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
 	theJob, err := (*h.publishService).createJob(jobRequest.IDS, *url, jobRequest.Throttle)
