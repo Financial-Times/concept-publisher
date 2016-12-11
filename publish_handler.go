@@ -107,7 +107,7 @@ func (h publishHandler) deleteJob(w http.ResponseWriter, r *http.Request) {
 	err := (*h.publishService).deleteJob(id)
 	if err != nil {
 		_, ok := err.(*notFoundError)
-		code := http.StatusBadRequest
+		code := http.StatusInternalServerError
 		if ok {
 			code = http.StatusNotFound
 		}
