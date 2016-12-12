@@ -376,8 +376,8 @@ func TestRunJob(t *testing.T) {
 			status:       completed,
 		},
 		{
-			name:    "throttle",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			name:     "throttle",
+			baseURL:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			throttle: 10,
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -433,7 +433,7 @@ func TestRunJob(t *testing.T) {
 		}
 		pubService.runJob(oneJob, "Basic 1234")
 		if test.throttle > 0 {
-			time.Sleep(time.Millisecond * (500 + time.Duration(int(1000 * float64(len(test.publishedIds) + len(test.failedIds)) / float64(test.throttle)))))
+			time.Sleep(time.Millisecond * (500 + time.Duration(int(1000*float64(len(test.publishedIds)+len(test.failedIds))/float64(test.throttle)))))
 		}
 		var found bool
 		for _, failedId := range test.failedIds {
