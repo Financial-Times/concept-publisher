@@ -45,12 +45,12 @@ type concept struct {
 type publishService struct {
 	sync.RWMutex
 	clusterRouterAddress *url.URL
-	queueServiceI        *queueServiceI
+	queueServiceI        *queue
 	jobs                 map[string]*job
-	httpService          *httpServiceI
+	httpService          *caller
 }
 
-func newPublishService(clusterRouterAddress *url.URL, queueSer *queueServiceI, httpSer *httpServiceI) publishService {
+func newPublishService(clusterRouterAddress *url.URL, queueSer *queue, httpSer *caller) publishService {
 	return publishService{
 		clusterRouterAddress: clusterRouterAddress,
 		queueServiceI:        queueSer,
@@ -59,7 +59,7 @@ func newPublishService(clusterRouterAddress *url.URL, queueSer *queueServiceI, h
 	}
 }
 
-type publishServiceI interface {
+type publisher interface {
 	createJob(ids []string, baseURL url.URL, throttle int) (*job, error)
 	getJob(jobID string) (*job, error)
 	getJobIds() []string

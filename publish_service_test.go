@@ -15,8 +15,8 @@ func TestGetJobIds_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var mockQueueSer queueServiceI = allOkQueueService{}
-	var mockHttpSer httpServiceI = nilHttpService{}
+	var mockQueueSer queue = allOkQueue{}
+	var mockHttpSer caller = nilHttpService{}
 	pubService := newPublishService(url, &mockQueueSer, &mockHttpSer)
 	actualIds := pubService.getJobIds()
 	expectedIds := []string{}
@@ -110,8 +110,8 @@ func TestCreateJob(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		var mockQueueSer queueServiceI = allOkQueueService{}
-		var mockHttpSer httpServiceI = nilHttpService{}
+		var mockQueueSer queue = allOkQueue{}
+		var mockHttpSer caller = nilHttpService{}
 		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer)
 		testBaseUrl, err := url.Parse(test.baseUrl)
 		if err != nil {
@@ -199,8 +199,8 @@ func TestDeleteJob(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var mockQueueSer queueServiceI = allOkQueueService{}
-		var mockHttpSer httpServiceI = nilHttpService{}
+		var mockQueueSer queue = allOkQueue{}
+		var mockHttpSer caller = nilHttpService{}
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
 			queueServiceI:        &mockQueueSer,
@@ -236,7 +236,7 @@ func TestRunJob(t *testing.T) {
 		idsFailure              *failure
 		staticIds               string
 		countFailure            *failure
-		queueSer                queueServiceI
+		queueSer                queue
 		idToTID                 map[string]string
 		publishedIds            []string
 		failedIds               []string
@@ -249,7 +249,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer:     allOkQueueService{},
+			queueSer:     allOkQueue{},
 			idToTID:      map[string]string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -263,7 +263,7 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			reloadErr:    errors.New("Can't reload"),
-			queueSer:     allOkQueueService{},
+			queueSer:     allOkQueue{},
 			idToTID:      map[string]string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -276,7 +276,7 @@ func TestRunJob(t *testing.T) {
 				"1": "X1",
 				"2": "X2",
 			},
-			queueSer:     allOkQueueService{},
+			queueSer:     allOkQueue{},
 			idToTID:      map[string]string{},
 			publishedIds: []string{"X1", "X2"},
 			failedIds:    []string{},
@@ -293,7 +293,7 @@ func TestRunJob(t *testing.T) {
 				conceptID: "",
 				error:     errors.New("Some error in ids."),
 			},
-			queueSer:     allOkQueueService{},
+			queueSer:     allOkQueue{},
 			idToTID:      map[string]string{},
 			publishedIds: []string{},
 			failedIds:    []string{"", ""},
@@ -306,7 +306,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "\"2",
 			},
-			queueSer:     allOkQueueService{},
+			queueSer:     allOkQueue{},
 			idToTID:      map[string]string{},
 			publishedIds: []string{"1"},
 			failedIds:    []string{"2"},
@@ -319,7 +319,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"3": "3",
 			},
-			queueSer: allOkQueueService{},
+			queueSer: allOkQueue{},
 			idToTID: map[string]string{
 				"1": "",
 				"2": "",
@@ -336,7 +336,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer:     errQueueService{},
+			queueSer:     errorQueue{},
 			idToTID:      map[string]string{},
 			publishedIds: []string{},
 			failedIds:    []string{"1", "2"},
@@ -353,7 +353,7 @@ func TestRunJob(t *testing.T) {
 				conceptID: "",
 				error:     errors.New("Some error in count."),
 			},
-			queueSer:     allOkQueueService{},
+			queueSer:     allOkQueue{},
 			idToTID:      map[string]string{},
 			publishedIds: []string{},
 			failedIds:    []string{},
@@ -369,7 +369,7 @@ func TestRunJob(t *testing.T) {
 			staticIds: `{"id":"1"}
 			//
 			{"xx":"2"}`,
-			queueSer:     allOkQueueService{},
+			queueSer:     allOkQueue{},
 			idToTID:      map[string]string{},
 			publishedIds: []string{"1"},
 			failedIds:    []string{""},
@@ -383,7 +383,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer:     allOkQueueService{},
+			queueSer:     allOkQueue{},
 			idToTID:      map[string]string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -396,8 +396,8 @@ func TestRunJob(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var mockQueueSer queueServiceI = test.queueSer
-		var mockHttpSer httpServiceI = definedIdsHttpService{
+		var mockQueueSer queue = test.queueSer
+		var mockHttpSer caller = definedIdsHttpService{
 			definedToResolvedIs: test.definedIdsToResolvedIds,
 			reloadF: func(string, string) error {
 				return test.reloadErr
@@ -462,15 +462,15 @@ func TestRunJob(t *testing.T) {
 	}
 }
 
-type allOkQueueService struct{}
+type allOkQueue struct{}
 
-func (q allOkQueueService) sendMessage(id string, conceptType string, tid string, payload []byte) error {
+func (q allOkQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
 	return nil
 }
 
-type errQueueService struct{}
+type errorQueue struct{}
 
-func (q errQueueService) sendMessage(id string, conceptType string, tid string, payload []byte) error {
+func (q errorQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
 	return errors.New("Couldn't send because test.")
 }
 

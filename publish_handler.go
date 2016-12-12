@@ -13,10 +13,10 @@ import (
 )
 
 type publishHandler struct {
-	publishService *publishServiceI
+	publishService *publisher
 }
 
-func newPublishHandler(publishService *publishServiceI) publishHandler {
+func newPublishHandler(publishService *publisher) publishHandler {
 	return publishHandler{publishService: publishService}
 }
 

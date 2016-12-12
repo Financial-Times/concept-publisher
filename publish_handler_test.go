@@ -51,7 +51,7 @@ func TestHandlerCreateJob(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		var pubService publishServiceI = mockedPublishService{
+		var pubService publisher = mockedPublisher{
 			createJobF: test.createJobF,
 			runJobF: func (theJob *job, authorization string) {},
 		}
@@ -96,7 +96,7 @@ func TestHandlerStatus(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		var pubService publishServiceI = mockedPublishService{
+		var pubService publisher = mockedPublisher{
 			getJobF: test.getJobF,
 		}
 		pubHandler := newPublishHandler(&pubService)
@@ -134,7 +134,7 @@ func TestHandlerJobs(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		var pubService publishServiceI = mockedPublishService{
+		var pubService publisher = mockedPublisher{
 			getJobIdsF: test.getJobIdsF,
 		}
 		pubHandler := newPublishHandler(&pubService)
@@ -189,7 +189,7 @@ func TestHandlerDeleteJob(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		var pubService publishServiceI = mockedPublishService{
+		var pubService publisher = mockedPublisher{
 			deleteJobF: test.deleteJobF,
 		}
 		pubHandler := newPublishHandler(&pubService)
@@ -204,7 +204,7 @@ func TestHandlerDeleteJob(t *testing.T) {
 	}
 }
 
-type mockedPublishService struct {
+type mockedPublisher struct {
 	createJobF func (ids []string, baseURL url.URL, throttle int) (*job, error)
 	getJobF    func (jobID string) (*job, error)
 	getJobIdsF func () []string
@@ -212,22 +212,22 @@ type mockedPublishService struct {
 	deleteJobF func (jobID string) error
 }
 
-func (p mockedPublishService) createJob(ids []string, baseURL url.URL, throttle int) (*job, error) {
+func (p mockedPublisher) createJob(ids []string, baseURL url.URL, throttle int) (*job, error) {
 	return p.createJobF(ids, baseURL, throttle)
 }
 
-func (p mockedPublishService) getJob(jobID string) (*job, error) {
+func (p mockedPublisher) getJob(jobID string) (*job, error) {
 	return p.getJobF(jobID)
 }
 
-func (p mockedPublishService) getJobIds() []string {
+func (p mockedPublisher) getJobIds() []string {
 	return p.getJobIdsF()
 }
 
-func (p mockedPublishService) runJob(theJob *job, authorization string) {
+func (p mockedPublisher) runJob(theJob *job, authorization string) {
 	p.runJobF(theJob, authorization)
 }
 
-func (p mockedPublishService) deleteJob(jobID string) error {
+func (p mockedPublisher) deleteJob(jobID string) error {
 	return p.deleteJobF(jobID)
 }

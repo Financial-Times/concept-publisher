@@ -56,9 +56,9 @@ func main() {
 				}).Dial,
 			},
 		}
-		var queueSerI queueServiceI = newQueueService(&messageProducer)
-		var httpSerI httpServiceI = newHttpService(httpClient)
-		var pubSerI publishServiceI = newPublishService(clusterRouterAddress, &queueSerI, &httpSerI)
+		var queueSerI queue = newQueueService(&messageProducer)
+		var httpSerI caller = newHttpCaller(httpClient)
+		var pubSerI publisher = newPublishService(clusterRouterAddress, &queueSerI, &httpSerI)
 		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
 		pubHandler := newPublishHandler(&pubSerI)
 		assignHandlers(*port, &pubHandler, &healthHandler)

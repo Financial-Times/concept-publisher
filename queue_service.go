@@ -5,19 +5,19 @@ import (
 	"time"
 )
 
-type queueService struct {
+type kafkaQueue struct {
 	producer *producer.MessageProducer
 }
 
-func newQueueService(producer *producer.MessageProducer) queueService {
-	return queueService{producer: producer}
+func newQueueService(producer *producer.MessageProducer) kafkaQueue {
+	return kafkaQueue{producer: producer}
 }
 
-type queueServiceI interface {
+type queue interface {
 	sendMessage(id string, conceptType string, tid string, payload []byte) error
 }
 
-func (q queueService) sendMessage(id string, conceptType string, tid string, payload []byte) error {
+func (q kafkaQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
 	message := producer.Message{
 		Headers: buildHeader(id, conceptType, tid),
 		Body:    string(payload),

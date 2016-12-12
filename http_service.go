@@ -7,22 +7,22 @@ import (
 	"strconv"
 )
 
-type httpService struct {
+type httpCaller struct {
 	httpClient *http.Client
 }
 
-func newHttpService(httpClient *http.Client) httpService {
-	return httpService{httpClient: httpClient}
+func newHttpCaller(httpClient *http.Client) httpCaller {
+	return httpCaller{httpClient: httpClient}
 }
 
-type httpServiceI interface {
+type caller interface {
 	reload(url string, authorization string) error
 	getIds(url string, authorization string) ([]byte, *failure)
 	getCount(url string, authorization string) (int, error)
 	fetchConcept(conceptID string, url string, authorization string) ([]byte, *failure)
 }
 
-func (h httpService) reload(url string, authorization string) error {
+func (h httpCaller) reload(url string, authorization string) error {
 	req, _ := http.NewRequest("POST", url, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
@@ -38,7 +38,7 @@ func (h httpService) reload(url string, authorization string) error {
 	return nil
 }
 
-func (h httpService) getIds(url string, authorization string) ([]byte, *failure) {
+func (h httpCaller) getIds(url string, authorization string) ([]byte, *failure) {
 	req, _ := http.NewRequest("GET", url, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
@@ -58,7 +58,7 @@ func (h httpService) getIds(url string, authorization string) ([]byte, *failure)
 	return body, nil
 }
 
-func (h httpService) getCount(url string, authorization string) (int, error) {
+func (h httpCaller) getCount(url string, authorization string) (int, error) {
 	req, _ := http.NewRequest("GET", url, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
@@ -82,7 +82,7 @@ func (h httpService) getCount(url string, authorization string) (int, error) {
 	return count, nil
 }
 
-func (h httpService) fetchConcept(conceptID string, url string, authorization string) ([]byte, *failure) {
+func (h httpCaller) fetchConcept(conceptID string, url string, authorization string) ([]byte, *failure) {
 	req, _ := http.NewRequest("GET", url, nil)
 	if authorization != "" {
 		req.Header.Set("Authorization", authorization)
