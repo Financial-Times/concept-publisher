@@ -203,7 +203,7 @@ func TestDeleteJob(t *testing.T) {
 		var mockHttpSer caller = nilHttpService{}
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
-			queueServiceI:        &mockQueueSer,
+			queueService:        &mockQueueSer,
 			jobs:                 test.jobs,
 			httpService:          &mockHttpSer,
 		}
@@ -425,7 +425,7 @@ func TestRunJob(t *testing.T) {
 
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
-			queueServiceI:        &mockQueueSer,
+			queueService:        &mockQueueSer,
 			jobs: map[string]*job{
 				"job_1": oneJob,
 			},

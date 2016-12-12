@@ -45,17 +45,17 @@ type concept struct {
 type publishService struct {
 	sync.RWMutex
 	clusterRouterAddress *url.URL
-	queueServiceI        *queue
+	queueService         *queue
 	jobs                 map[string]*job
 	httpService          *caller
 }
 
-func newPublishService(clusterRouterAddress *url.URL, queueSer *queue, httpSer *caller) publishService {
+func newPublishService(clusterRouterAddress *url.URL, queueService *queue, httpService *caller) publishService {
 	return publishService{
 		clusterRouterAddress: clusterRouterAddress,
-		queueServiceI:        queueSer,
+		queueService:         queueService,
 		jobs:                 make(map[string]*job),
-		httpService:          httpSer,
+		httpService:          httpService,
 	}
 }
 
@@ -165,7 +165,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 			// lock job to update
 			theJob.Lock()
 			theJob.IDToTID[resolvedID] = tid
-			err := (*p.queueServiceI).sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
+			err := (*p.queueService).sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
 			if err != nil {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
