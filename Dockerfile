@@ -1,10 +1,10 @@
-FROM alpine:3.3
+FROM alpine:3.4
 
 ADD *.go /concept-publisher/
 
 RUN apk add --update bash \
-  && apk --update add git bzr \
-  && apk --update add go \
+  && apk --update add git bzr  \
+  && apk --update add go ca-certificates \
   && export GOPATH=/gopath \
   && REPO_PATH="github.com/Financial-Times/concept-publisher" \
   && mkdir -p $GOPATH/src/${REPO_PATH} \
@@ -17,4 +17,4 @@ RUN apk add --update bash \
   && apk del go git bzr \
   && rm -rf $GOPATH /var/cache/apk/*
 
-CMD [ "/concept-publisher" ]
+CMD exec /concept-publisher
