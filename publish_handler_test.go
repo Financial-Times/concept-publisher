@@ -64,8 +64,9 @@ func TestHandlerCreateJob(t *testing.T) {
 		if actualStatus := recorder.Code; actualStatus != test.expectedStatus {
 			t.Errorf("%s\nhandler returned wrong status code: got %v want %v", test.name, actualStatus, test.expectedStatus)
 		}
-		if !strings.HasPrefix(string(recorder.Body.Bytes()), "job_") {
-			t.Errorf("%s\nhandler didn't return created job id", test.name)
+		resp := string(recorder.Body.Bytes())
+		if test.expectedStatus == http.StatusCreated && !strings.HasPrefix(resp, `{"jobID":`) {
+			t.Errorf("%s\nhandler didn't return created job id: %v", test.name, resp)
 		}
 	}
 }

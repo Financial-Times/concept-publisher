@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
@@ -52,22 +51,19 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	w.WriteHeader(http.StatusCreated)
 	w.Header().Add("Content-Type", "application/json")
 	type shortJob struct {
 		JobID string `json:"jobID"`
 	}
 	sj := shortJob{JobID: theJob.JobID}
-	var respBytes []byte
-	respBuff := bytes.NewBuffer(respBytes)
-	enc := json.NewEncoder(respBuff)
+	enc := json.NewEncoder(w)
 	err = enc.Encode(sj)
 	if err != nil {
 		log.Errorf("Error on json encoding=%v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	w.Write(respBytes)
 	go (*h.publishService).runJob(theJob, jobRequest.Authorization)
 }
 
