@@ -96,7 +96,7 @@ func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (
 	defer s.Unlock()
 	s.jobs[jobID] = theJob
 	log.Infof("message=\"Created job\" jobID=%s", theJob.JobID)
-	log.Infof("Unlocking publishServicer at createJob", theJob.JobID)
+	log.Infof("Unlocking publishService at createJob")
 	return theJob, nil
 }
 
@@ -189,10 +189,12 @@ func (p publishService) runJob(theJob *job, authorization string) {
 }
 
 func (s publishService) fetchAll(theJob *job, authorization string, concepts chan<- concept, failures chan<- failure) {
+	log.Infof("before new ticker")
 	ticker := time.NewTicker(time.Second / 1000)
 	if theJob.Throttle > 0 {
 		ticker = time.NewTicker(time.Second / time.Duration(theJob.Throttle))
 	}
+	log.Infof("after new ticker")
 	idsChan := make(chan string, loadBuffer)
 	if len(theJob.IDToTID) > 0 {
 		go func() {
@@ -220,6 +222,7 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 		return
 	}
 	reader := bufio.NewReader(bytes.NewReader(body))
+	log.Infof("fetchIDList for")
 	for {
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
@@ -247,6 +250,7 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 }
 
 func (p publishService) fetchConcepts(theJob *job, authorization string, concepts chan<- concept, ids <-chan string, failures chan<- failure, ticker *time.Ticker) {
+	log.Infof("fetchConcepts before for")
 	for {
 		id, ok := <-ids
 		if !ok {
