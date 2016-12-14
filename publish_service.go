@@ -208,7 +208,7 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 			log.Infof("RUnlocking %v at fetchAll", theJob.JobID)
 		}()
 	} else {
-		s.fetchIDList(theJob, authorization, idsChan, failures)
+		go s.fetchIDList(theJob, authorization, idsChan, failures)
 	}
 	for i := 0; i < concurrentReaders; i++ {
 		go s.fetchConcepts(theJob, authorization, concepts, idsChan, failures, ticker)
@@ -244,6 +244,7 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 			pushToFailures(fail, failures)
 			continue
 		}
+		log.Infof("ids <- le.ID %v", le.ID)
 		ids <- le.ID
 	}
 	close(ids)
