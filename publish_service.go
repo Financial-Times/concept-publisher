@@ -91,32 +91,40 @@ func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (
 		Status:      defined,
 		FailedIDs:   []string{},
 	}
+	log.Infof("Locking publishService at createJob")
 	s.Lock()
 	defer s.Unlock()
 	s.jobs[jobID] = theJob
 	log.Infof("message=\"Created job\" jobID=%s", theJob.JobID)
+	log.Infof("Unlocking publishServicer at createJob", theJob.JobID)
 	return theJob, nil
 }
 
 func (s publishService) getJob(jobID string) (*job, error) {
+	log.Infof("Locking publishService at getJob")
 	s.RLock()
 	defer s.RUnlock()
 	job, ok := s.jobs[jobID]
 	if !ok {
 		return nil, newNotFoundError(jobID)
 	}
+	log.Infof("Unlocking publishService at getJob")
 	return job, nil
 }
 
 func (s publishService) getJobIds() []string {
 	jobIds := []string{}
+	log.Infof("Locking publishService at getJobIds")
 	s.RLock()
 	defer s.RUnlock()
 	for _, j := range s.jobs {
+		log.Infof("Rlocking %v at getJobIds", j.JobID)
 		j.RLock()
 		jobIds = append(jobIds, j.JobID)
+		log.Infof("RUnlocking %v at getJobIds", j.JobID)
 		j.RUnlock()
 	}
+	log.Infof("Runlocking publishService at getJobIds")
 	return jobIds
 }
 
@@ -163,6 +171,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 			tid := "tid_" + generateID()
 
 			// lock job to update
+			log.Infof("Locking %v at runJob", theJob.JobID)
 			theJob.Lock()
 			theJob.IDToTID[resolvedID] = tid
 			err := (*p.queueService).sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
@@ -170,6 +179,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
+			log.Infof("UnLocking %v at runJob", theJob.JobID)
 			theJob.Unlock()
 		}
 	}
@@ -186,12 +196,14 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 	idsChan := make(chan string, loadBuffer)
 	if len(theJob.IDToTID) > 0 {
 		go func() {
+			log.Infof("RLocking %v at fetchAll", theJob.JobID)
 			theJob.RLock()
 			defer theJob.RUnlock()
 			for id := range theJob.IDToTID {
 				idsChan <- id
 			}
 			close(idsChan)
+			log.Infof("RUnlocking %v at fetchAll", theJob.JobID)
 		}()
 	} else {
 		s.fetchIDList(theJob, authorization, idsChan, failures)
@@ -257,9 +269,11 @@ func (s publishService) deleteJob(jobID string) error {
 	if err != nil {
 		return err
 	}
+	log.Infof("Locking publishservice at deleteJob")
 	s.Lock()
 	defer s.Unlock()
 	delete(s.jobs, jobID)
+	log.Infof("Unlocking publishservice at deleteJob")
 	return nil
 }
 

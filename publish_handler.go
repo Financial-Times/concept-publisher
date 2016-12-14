@@ -70,7 +70,7 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	status, err := (*h.publishService).getJob(id)
+	theJob, err := (*h.publishService).getJob(id)
 	if err != nil {
 		log.Errorf("message=\"Error returning job\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -78,13 +78,15 @@ func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
-	status.RLock()
-	defer status.RUnlock()
-	if err := enc.Encode(status); err != nil {
+	log.Infof("RLocking %v because status in handler", theJob.JobID)
+	theJob.RLock()
+	defer theJob.RUnlock()
+	if err := enc.Encode(theJob); err != nil {
 		log.Errorf("message=\"Error on json encoding\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	log.Infof("RUnlocking %v because status in handler", theJob.JobID)
 }
 
 func (h publishHandler) listJobs(w http.ResponseWriter, r *http.Request) {
