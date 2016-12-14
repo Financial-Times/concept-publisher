@@ -244,7 +244,6 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 			pushToFailures(fail, failures)
 			continue
 		}
-		log.Infof("ids <- le.ID %v", le.ID)
 		ids <- le.ID
 	}
 	close(ids)
