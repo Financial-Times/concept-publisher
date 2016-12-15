@@ -13,9 +13,11 @@ import (
 	"sync"
 	"time"
 
+	"errors"
+	"strings"
+
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
-	"errors"
 )
 
 const messageTimestampDateFormat = "2006-01-02T15:04:05.000Z"
@@ -127,7 +129,9 @@ func (s *publishService) publishConcepts(jobID string, conceptType string, ids [
 			message := producer.Message{Headers: buildHeader(c.id, conceptType), Body: c.payload}
 			err := s.producer.SendMessage(c.id, message)
 			if err != nil {
-				s.handleErr(jobID, err)
+				if !strings.Contains(err.Error(), "Returned 404") {
+					s.handleErr(jobID, err)
+				}
 				return
 			}
 			if i%th == 0 {
