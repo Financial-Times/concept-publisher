@@ -175,7 +175,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 	}
 
 	theJob.updateStatus(completed)
-	log.Infof("message=\"Completed job\" jobID=%s status=%s nFailedIds=%d", theJob.JobID, theJob.Status, len(theJob.FailedIDs))
+	log.Infof("message=\"Completed job\" jobID=%s status=%s count=%d nPublishedIds=%d nFailedIds=%d", theJob.JobID, theJob.Status, theJob.Count, len(theJob.IDToTID), len(theJob.FailedIDs))
 }
 
 func (s publishService) fetchAll(theJob *job, authorization string, concepts chan<- concept, failures chan<- failure) {
