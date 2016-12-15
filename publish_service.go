@@ -163,14 +163,14 @@ func (p publishService) runJob(theJob *job, authorization string) {
 			tid := "tid_" + generateID()
 
 			// lock job to update
-			theJob.Lock()
-			theJob.IDToTID[resolvedID] = tid
+			//theJob.Lock()
+			//theJob.IDToTID[resolvedID] = tid
 			err := (*p.queueService).sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
 			if err != nil {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
-			theJob.Unlock()
+			//theJob.Unlock()
 		}
 	}
 
