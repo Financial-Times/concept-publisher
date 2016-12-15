@@ -21,7 +21,7 @@ const (
 	concurrentReaders          = 128
 
 	defined    = "Defined"
-	inProgress = "Defined"
+	inProgress = "In Progress"
 	completed  = "Completed"
 	failed     = "Failed"
 
@@ -161,21 +161,15 @@ func (p publishService) runJob(theJob *job, authorization string) {
 				log.Infof("message=\"initial uuid doesn't match fetched resolved uuid\" originalUuid=%v resolvedUuid=%v jobId=%v", c.id, resolvedID, theJob.JobID)
 			}
 			tid := "tid_" + generateID()
-
-			// lock job to update
-			//theJob.Lock()
-			//theJob.IDToTID[resolvedID] = tid
 			err := (*p.queueService).sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
 			if err != nil {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
-			//theJob.Unlock()
 		}
 	}
-
 	theJob.updateStatus(completed)
-	log.Infof("message=\"Completed job\" jobID=%s status=%s count=%d nPublishedIds=%d nFailedIds=%d", theJob.JobID, theJob.Status, theJob.Count, len(theJob.IDToTID), len(theJob.FailedIDs))
+	log.Infof("message=\"Completed job\" jobID=%s status=%s count=%d nFailedIds=%d", theJob.JobID, theJob.Status, theJob.Count, len(theJob.FailedIDs))
 }
 
 func (s publishService) fetchAll(theJob *job, authorization string, concepts chan<- concept, failures chan<- failure) {

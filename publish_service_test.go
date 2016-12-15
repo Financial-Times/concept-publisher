@@ -40,115 +40,115 @@ func TestGetJobIds_1(t *testing.T) {
 	}
 }
 
-//func TestCreateJob(t *testing.T) {
-//	tests := []struct {
-//		clusterUrl   string
-//		baseUrl      string
-//		conceptType  string
-//		ids          []string
-//		throttle     int
-//		createErr    error
-//		idToTID      map[string]string
-//		finalBaseUrl string
-//	}{
-//		{
-//			clusterUrl:   "http://localhost:8080",
-//			baseUrl:      "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
-//			conceptType:  "special-reports",
-//			ids:          []string{},
-//			throttle:     1,
-//			createErr:    nil,
-//			idToTID:      make(map[string]string),
-//			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
-//		},
-//		{
-//			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-//			baseUrl:      "/__special-reports-transformer/transformers/special-reports",
-//			conceptType:  "special-reports",
-//			ids:          []string{},
-//			throttle:     1,
-//			createErr:    errors.New(`message="Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/`),
-//			idToTID:      make(map[string]string),
-//			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/topics/",
-//		},
-//		{
-//			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-//			baseUrl:      "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
-//			conceptType:  "special-reports",
-//			ids:          []string{},
-//			throttle:     1,
-//			createErr:    nil,
-//			idToTID:      make(map[string]string),
-//			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
-//		},
-//		{
-//			clusterUrl:   "http://localhost:8080",
-//			baseUrl:      "/__special-reports-transformer/transformers/topics/",
-//			conceptType:  "topics",
-//			ids:          []string{},
-//			throttle:     1,
-//			createErr:    nil,
-//			idToTID:      make(map[string]string),
-//			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
-//		},
-//		{
-//			clusterUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-//			baseUrl:     "/__topics-transformer/transformers/topics/",
-//			conceptType: "topics",
-//			ids:         []string{"1", "2"},
-//			throttle:    1,
-//			createErr:   nil,
-//			idToTID: map[string]string{
-//				"1": "",
-//				"2": "",
-//			},
-//			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
-//		},
-//	}
-//	for _, test := range tests {
-//		clusterUrl, err := url.Parse(test.clusterUrl)
-//		if err != nil {
-//			t.Error(err)
-//		}
-//		var mockQueueSer queue = allOkQueue{}
-//		var mockHttpSer caller = nilHttpService{}
-//		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer)
-//		testBaseUrl, err := url.Parse(test.baseUrl)
-//		if err != nil {
-//			t.Error(err)
-//		}
-//		finalBaseUrl, err := url.Parse(test.finalBaseUrl)
-//		if err != nil {
-//			t.Error(err)
-//		}
-//
-//		actualJob, err := pubService.createJob(test.ids, *testBaseUrl, test.throttle)
-//
-//		if err != nil {
-//			if test.createErr != nil {
-//				if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
-//					t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.createErr)
-//				}
-//				continue
-//			}
-//			t.Errorf("unexpected error: %v", err)
-//			return
-//		}
-//		expectedJob := job{
-//			JobID:       actualJob.JobID,
-//			ConceptType: test.conceptType,
-//			IDToTID:     test.idToTID,
-//			URL:         *finalBaseUrl,
-//			Throttle:    test.throttle,
-//			Progress:    0,
-//			Status:      defined,
-//			FailedIDs:   []string{},
-//		}
-//		if !reflect.DeepEqual(*actualJob, expectedJob) {
-//			t.Errorf("wrong job. diff got vs want:\n%v\n%v", *actualJob, expectedJob)
-//		}
-//	}
-//}
+func TestCreateJob(t *testing.T) {
+	tests := []struct {
+		clusterUrl   string
+		baseUrl      string
+		conceptType  string
+		ids          []string
+		throttle     int
+		createErr    error
+		idToTID      map[string]string
+		finalBaseUrl string
+	}{
+		{
+			clusterUrl:   "http://localhost:8080",
+			baseUrl:      "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			conceptType:  "special-reports",
+			ids:          []string{},
+			throttle:     1,
+			createErr:    nil,
+			idToTID:      make(map[string]string),
+			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+		},
+		{
+			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl:      "/__special-reports-transformer/transformers/special-reports",
+			conceptType:  "special-reports",
+			ids:          []string{},
+			throttle:     1,
+			createErr:    errors.New(`message="Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/`),
+			idToTID:      make(map[string]string),
+			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/topics/",
+		},
+		{
+			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl:      "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
+			conceptType:  "special-reports",
+			ids:          []string{},
+			throttle:     1,
+			createErr:    nil,
+			idToTID:      make(map[string]string),
+			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
+		},
+		{
+			clusterUrl:   "http://localhost:8080",
+			baseUrl:      "/__special-reports-transformer/transformers/topics/",
+			conceptType:  "topics",
+			ids:          []string{},
+			throttle:     1,
+			createErr:    nil,
+			idToTID:      make(map[string]string),
+			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
+		},
+		{
+			clusterUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl:     "/__topics-transformer/transformers/topics/",
+			conceptType: "topics",
+			ids:         []string{"1", "2"},
+			throttle:    1,
+			createErr:   nil,
+			idToTID: map[string]string{
+				"1": "",
+				"2": "",
+			},
+			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
+		},
+	}
+	for _, test := range tests {
+		clusterUrl, err := url.Parse(test.clusterUrl)
+		if err != nil {
+			t.Error(err)
+		}
+		var mockQueueSer queue = allOkQueue{}
+		var mockHttpSer caller = nilHttpService{}
+		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer)
+		testBaseUrl, err := url.Parse(test.baseUrl)
+		if err != nil {
+			t.Error(err)
+		}
+		finalBaseUrl, err := url.Parse(test.finalBaseUrl)
+		if err != nil {
+			t.Error(err)
+		}
+
+		actualJob, err := pubService.createJob(test.ids, *testBaseUrl, test.throttle)
+
+		if err != nil {
+			if test.createErr != nil {
+				if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
+					t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.createErr)
+				}
+				continue
+			}
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+		expectedJob := job{
+			JobID:       actualJob.JobID,
+			ConceptType: test.conceptType,
+			IDToTID:     test.idToTID,
+			URL:         *finalBaseUrl,
+			Throttle:    test.throttle,
+			Progress:    0,
+			Status:      defined,
+			FailedIDs:   []string{},
+		}
+		if !reflect.DeepEqual(*actualJob, expectedJob) {
+			t.Errorf("wrong job. diff got vs want:\n%v\n%v", *actualJob, expectedJob)
+		}
+	}
+}
 
 func TestDeleteJob(t *testing.T) {
 	tests := []struct {
@@ -391,7 +391,6 @@ func TestRunJob(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		//t.Run(fmt.Sprintf("Running: %s", test.name), func(t *testing.T) {
 		clusterUrl, err := url.Parse("http://ip-172-24-158-162.eu-west-1.compute.internal:8080")
 		if err != nil {
 			t.Fatal(err)
@@ -449,16 +448,9 @@ func TestRunJob(t *testing.T) {
 				t.Errorf("Expected failed id %v couldn't be found in actual failures:", failedId)
 			}
 		}
-		//for _, expectedPublishedId := range test.publishedIds {
-		//	_, ok := oneJob.IDToTID[expectedPublishedId]
-		//	if !ok {
-		//		t.Errorf("id %s didn't publish", expectedPublishedId)
-		//	}
-		//}
 		if oneJob.Status != test.status {
 			t.Errorf("bad status. got %s, want %s", oneJob.Status, test.status)
 		}
-		//})
 	}
 }
 
