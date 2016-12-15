@@ -70,17 +70,31 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	status, err := (*h.publishService).getJob(id)
+	theJob, err := (*h.publishService).getJob(id)
 	if err != nil {
 		log.Errorf("message=\"Error returning job\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	var filteredJob *job
+	if _, ok := r.URL.Query()["full"]; !ok {
+		filteredJob = &job{
+			JobID: theJob.JobID,
+			ConceptType: theJob.ConceptType,
+			Count: theJob.Count,
+			Progress: theJob.Progress,
+			Status: theJob.Status,
+			Throttle: theJob.Throttle,
+			URL: theJob.URL,
+		}
+	} else {
+		filteredJob = theJob
+	}
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
-	status.RLock()
-	defer status.RUnlock()
-	if err := enc.Encode(status); err != nil {
+	theJob.RLock()
+	defer theJob.RUnlock()
+	if err := enc.Encode(filteredJob); err != nil {
 		log.Errorf("message=\"Error on json encoding\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

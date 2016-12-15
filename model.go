@@ -15,7 +15,7 @@ type job struct {
 	Count       int               `json:"count"`
 	Progress    int               `json:"progress"`
 	Status      string            `json:"status"`
-	FailedIDs   []string          `json:"failedIDs"`
+	FailedIDs   []string          `json:"failedIDs,omitempty"`
 }
 
 type createJobRequest struct {
