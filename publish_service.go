@@ -73,10 +73,6 @@ func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (
 		baseURL.Scheme = s.clusterRouterAddress.Scheme
 		baseURL.Host = s.clusterRouterAddress.Host
 	}
-	idMap := make(map[string]string)
-	for _, id := range ids {
-		idMap[id] = ""
-	}
 	foundGroups := conceptTypeRegex.FindStringSubmatch(baseURL.Path)
 	if len(foundGroups) < 2 {
 		return nil, fmt.Errorf("message=\"Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/  \" path=%s", baseURL.Path)
@@ -84,7 +80,7 @@ func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (
 	theJob := &job{
 		JobID:       jobID,
 		ConceptType: foundGroups[1],
-		IDToTID:     idMap,
+		IDs:         ids,
 		URL:         baseURL,
 		Throttle:    throttle,
 		Progress:    0,
@@ -129,8 +125,8 @@ func (p publishService) runJob(theJob *job, authorization string) {
 		log.Infof("message=\"Couldn't reload concepts\" conceptType=\"%s\" %v", theJob.ConceptType, err)
 	}
 	var jobCount int
-	if len(theJob.IDToTID) > 0 {
-		jobCount = len(theJob.IDToTID)
+	if len(theJob.IDs) > 0 {
+		jobCount = len(theJob.IDs)
 	} else {
 		jobCount, err = (*p.httpService).getCount(theJob.URL.String()+countSuffix, authorization)
 		if err != nil {
@@ -178,11 +174,11 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 		ticker = time.NewTicker(time.Second / time.Duration(theJob.Throttle))
 	}
 	idsChan := make(chan string, loadBuffer)
-	if len(theJob.IDToTID) > 0 {
+	if len(theJob.IDs) > 0 {
 		go func() {
 			theJob.RLock()
 			defer theJob.RUnlock()
-			for id := range theJob.IDToTID {
+			for _, id := range theJob.IDs {
 				idsChan <- id
 			}
 			close(idsChan)
