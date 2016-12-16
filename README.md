@@ -29,6 +29,10 @@ Return all the jobs' ids.
 
 ### GET /jobs/{id}
 
+You can add the parameter _full_ to see the optionally given defined IDs and the failedIDs of the job.
+
+e.g. `curl -H "Accept: application/json" localhost:8080/jobs/job_123456?full`
+
 Get detailed job status, should it be in progress, completed or failed.
 
 ### POST /jobs
