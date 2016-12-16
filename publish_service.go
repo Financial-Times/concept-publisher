@@ -260,7 +260,6 @@ func (s publishService) deleteJob(jobID string) error {
 func pushToFailures(fail *failure, failures chan<- failure) {
 	select {
 	case failures <- *fail:
-	default:
 	}
 }
 
