@@ -42,6 +42,7 @@ func TestGetJobIds_1(t *testing.T) {
 
 func TestCreateJob(t *testing.T) {
 	tests := []struct {
+		name         string
 		clusterUrl   string
 		baseUrl      string
 		conceptType  string
@@ -52,6 +53,7 @@ func TestCreateJob(t *testing.T) {
 		finalBaseUrl string
 	}{
 		{
+			name:         "one",
 			clusterUrl:   "http://localhost:8080",
 			baseUrl:      "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
 			conceptType:  "special-reports",
@@ -62,16 +64,18 @@ func TestCreateJob(t *testing.T) {
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
 		},
 		{
+			name:         "two",
 			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
 			baseUrl:      "/__special-reports-transformer/transformers/special-reports",
-			conceptType:  "special-reports",
+			conceptType:  "special-reports-otherwise",
 			ids:          []string{},
 			throttle:     1,
-			createErr:    errors.New(`message="Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/`),
+			createErr:    nil,
 			definedIDs:   []string{},
-			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/topics/",
+			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/transformers/special-reports",
 		},
 		{
+			name:         "three",
 			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
 			baseUrl:      "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
 			conceptType:  "special-reports",
@@ -82,6 +86,7 @@ func TestCreateJob(t *testing.T) {
 			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
 		},
 		{
+			name:         "four",
 			clusterUrl:   "http://localhost:8080",
 			baseUrl:      "/__special-reports-transformer/transformers/topics/",
 			conceptType:  "topics",
@@ -92,6 +97,7 @@ func TestCreateJob(t *testing.T) {
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
 		},
 		{
+			name:         "five",
 			clusterUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
 			baseUrl:     "/__topics-transformer/transformers/topics/",
 			conceptType: "topics",
@@ -119,7 +125,7 @@ func TestCreateJob(t *testing.T) {
 			t.Error(err)
 		}
 
-		actualJob, err := pubService.createJob(test.ids, *testBaseUrl, test.throttle)
+		actualJob, err := pubService.createJob(test.conceptType, test.ids, *testBaseUrl, test.throttle)
 
 		if err != nil {
 			if test.createErr != nil {
@@ -142,7 +148,7 @@ func TestCreateJob(t *testing.T) {
 			FailedIDs:   []string{},
 		}
 		if !reflect.DeepEqual(*actualJob, expectedJob) {
-			t.Errorf("wrong job. diff got vs want:\n%v\n%v", *actualJob, expectedJob)
+			t.Errorf("test %v - wrong job. diff got vs want:\n%v\n%v", test.name, *actualJob, expectedJob)
 		}
 	}
 }

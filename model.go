@@ -19,6 +19,7 @@ type job struct {
 }
 
 type createJobRequest struct {
+	ConceptType   string   `json:"concept"`
 	URL           string   `json:"url"`
 	Throttle      int      `json:"throttle"`
 	Authorization string   `json:"authorization"`

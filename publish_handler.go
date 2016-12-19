@@ -32,6 +32,12 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
+	if jobRequest.ConceptType == "" {
+		err := "Concept type not specified. You need the field 'concept' as e.g. organisations, special-reports"
+		log.Warn(err)
+		http.Error(w, err, http.StatusBadRequest)
+		return
+	}
 	log.Infof("message=\"Concept publish request received\" %v", jobRequest)
 	if jobRequest.URL == "" {
 		err := "Base url empty"
@@ -45,7 +51,7 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	theJob, err := (*h.publishService).createJob(jobRequest.IDS, *url, jobRequest.Throttle)
+	theJob, err := (*h.publishService).createJob(jobRequest.ConceptType, jobRequest.IDS, *url, jobRequest.Throttle)
 	if err != nil {
 		log.Errorf("%v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)

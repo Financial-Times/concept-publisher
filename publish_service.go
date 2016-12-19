@@ -10,7 +10,6 @@ import (
 	"math/rand"
 	"net/url"
 	"reflect"
-	"regexp"
 	"sync"
 	"time"
 )
@@ -31,7 +30,6 @@ const (
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-var conceptTypeRegex = regexp.MustCompile(`/([\w\-]+)/$`)
 
 func (j job) String() string {
 	return fmt.Sprintf("conceptType=%s url=%v count=%d throttle=%d status=%s progress=%d", j.ConceptType, j.URL, j.Count, j.Throttle, j.Status, j.Progress)
@@ -60,26 +58,22 @@ func newPublishService(clusterRouterAddress *url.URL, queueService *queue, httpS
 }
 
 type publisher interface {
-	createJob(ids []string, baseURL url.URL, throttle int) (*job, error)
+	createJob(conceptType string, ids []string, baseURL url.URL, throttle int) (*job, error)
 	getJob(jobID string) (*job, error)
 	getJobIds() []string
 	runJob(theJob *job, authorization string)
 	deleteJob(jobID string) error
 }
 
-func (s publishService) createJob(ids []string, baseURL url.URL, throttle int) (*job, error) {
+func (s publishService) createJob(conceptType string, ids []string, baseURL url.URL, throttle int) (*job, error) {
 	jobID := "job_" + generateID()
 	if baseURL.Host == "" {
 		baseURL.Scheme = s.clusterRouterAddress.Scheme
 		baseURL.Host = s.clusterRouterAddress.Host
 	}
-	foundGroups := conceptTypeRegex.FindStringSubmatch(baseURL.Path)
-	if len(foundGroups) < 2 {
-		return nil, fmt.Errorf("message=\"Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/  \" path=%s", baseURL.Path)
-	}
 	theJob := &job{
 		JobID:       jobID,
-		ConceptType: foundGroups[1],
+		ConceptType: conceptType,
 		IDs:         ids,
 		URL:         baseURL,
 		Throttle:    throttle,
@@ -235,6 +229,7 @@ func (p publishService) fetchConcepts(theJob *job, authorization string, concept
 		}
 		data, fail := (*p.httpService).fetchConcept(id, theJob.URL.String()+id, authorization)
 		if fail != nil {
+			log.Warnf("coulnd't fetch concept, putting it to failures %v", id)
 			pushToFailures(fail, failures)
 			continue
 		}
