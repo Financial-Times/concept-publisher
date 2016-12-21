@@ -23,17 +23,9 @@ export CLUSTER_ROUTER_ADDRESS="http://localhost:8083"
 
 ## Endpoints
 
-### /jobs
+### GET /jobs
 
 Return all the jobs' ids.
-
-### GET /jobs/{id}
-
-You can add the parameter _full_ to see the optionally given defined IDs and the failedIDs of the job.
-
-e.g. `curl -H "Accept: application/json" localhost:8080/jobs/job_123456?full`
-
-Get detailed job status, should it be in progress, completed or failed.
 
 ### POST /jobs
 
@@ -50,6 +42,18 @@ Examples:
 
 ```
 curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"url": "/__special-reports-transformer/transformers/special-reports/", "throttle": 1000, "authorization": "Basic base64user:pass"}'
-   
+
 curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"ids":["uuid1","uuid2"],"url": "https://brands-transformer-up.ft.com/transformers/brands/", "throttle": 1000}'
 ```
+
+### GET /jobs/{id}
+
+You can add the parameter _full_ to see the optionally given defined IDs and the failedIDs of the job.
+
+e.g. `curl -H "Accept: application/json" localhost:8080/jobs/job_123456?full`
+
+Get detailed job status, should it be in progress, completed or failed.
+
+### DELETE /jobs/{id}
+
+Deletes the job. Works only if the job is terminated.
