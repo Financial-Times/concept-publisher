@@ -29,17 +29,22 @@ func TestHandlerCreateJob(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:     "missing fields",
-			httpBody: `{"url":"/__topics-transformer/transformers/topics"}`,
-			createJobF: func(ids []string, baseURL url.URL, throttle int) (*job, error) {
+			name:           "illegal url",
+			httpBody:       `{"url":"/__topics-transformer/transformers/topics"}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "missing fields",
+			httpBody:       `{"concept":"topics", "url":"/__topics-transformer/transformers/topics"}`,
+			createJobF:     func(ids []string, baseURL url.URL, throttle int) (*job, error) {
 				return &job{JobID: "1"}, nil
 			},
 			expectedStatus: http.StatusCreated,
 		},
 		{
-			name:     "error at subsequent call",
-			httpBody: `{"url":"/__topics-transformer/transformers/topics", "throttle": 100}`,
-			createJobF: func(ids []string, baseURL url.URL, throttle int) (*job, error) {
+			name:           "error at subsequent call",
+			httpBody:       `{"concept":"topics", "url":"/__topics-transformer/transformers/topics", "throttle": 100}`,
+			createJobF:     func(ids []string, baseURL url.URL, throttle int) (*job, error) {
 				return nil, errors.New("error creating job because of something")
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -63,6 +68,10 @@ func TestHandlerCreateJob(t *testing.T) {
 
 		if actualStatus := recorder.Code; actualStatus != test.expectedStatus {
 			t.Errorf("%s\nhandler returned wrong status code: got %v want %v", test.name, actualStatus, test.expectedStatus)
+		}
+		resp := string(recorder.Body.Bytes())
+		if test.expectedStatus == http.StatusCreated && !strings.HasPrefix(resp, `{"jobID":`) {
+			t.Errorf("%s\nhandler didn't return created job id: %v", test.name, resp)
 		}
 	}
 }
@@ -212,7 +221,7 @@ type mockedPublisher struct {
 	deleteJobF func(jobID string) error
 }
 
-func (p mockedPublisher) createJob(ids []string, baseURL url.URL, throttle int) (*job, error) {
+func (p mockedPublisher) createJob(conceptType string, ids []string, baseURL url.URL, throttle int) (*job, error) {
 	return p.createJobF(ids, baseURL, throttle)
 }
 

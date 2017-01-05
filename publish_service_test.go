@@ -42,66 +42,69 @@ func TestGetJobIds_1(t *testing.T) {
 
 func TestCreateJob(t *testing.T) {
 	tests := []struct {
+		name         string
 		clusterUrl   string
 		baseUrl      string
 		conceptType  string
 		ids          []string
 		throttle     int
 		createErr    error
-		idToTID      map[string]string
+		definedIDs   []string
 		finalBaseUrl string
 	}{
 		{
+			name:         "one",
 			clusterUrl:   "http://localhost:8080",
 			baseUrl:      "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
 			conceptType:  "special-reports",
 			ids:          []string{},
 			throttle:     1,
 			createErr:    nil,
-			idToTID:      make(map[string]string),
+			definedIDs:   []string{},
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
 		},
 		{
+			name:         "two",
 			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
 			baseUrl:      "/__special-reports-transformer/transformers/special-reports",
-			conceptType:  "special-reports",
+			conceptType:  "special-reports-otherwise",
 			ids:          []string{},
 			throttle:     1,
-			createErr:    errors.New(`message="Can't find concept type in URL. Must be like the following __special-reports-transformer/transformers/special-reports/`),
-			idToTID:      make(map[string]string),
-			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/topics/",
+			createErr:    nil,
+			definedIDs:   []string{},
+			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/transformers/special-reports",
 		},
 		{
+			name:         "three",
 			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
 			baseUrl:      "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
 			conceptType:  "special-reports",
 			ids:          []string{},
 			throttle:     1,
 			createErr:    nil,
-			idToTID:      make(map[string]string),
+			definedIDs:   []string{},
 			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
 		},
 		{
+			name:         "four",
 			clusterUrl:   "http://localhost:8080",
 			baseUrl:      "/__special-reports-transformer/transformers/topics/",
 			conceptType:  "topics",
 			ids:          []string{},
 			throttle:     1,
 			createErr:    nil,
-			idToTID:      make(map[string]string),
+			definedIDs:   []string{},
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
 		},
 		{
+			name:         "five",
 			clusterUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
 			baseUrl:     "/__topics-transformer/transformers/topics/",
 			conceptType: "topics",
 			ids:         []string{"1", "2"},
 			throttle:    1,
 			createErr:   nil,
-			idToTID: map[string]string{
-				"1": "",
-				"2": "",
-			},
+			definedIDs:  []string{"1", "2"},
 			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
 		},
 	}
@@ -122,7 +125,7 @@ func TestCreateJob(t *testing.T) {
 			t.Error(err)
 		}
 
-		actualJob, err := pubService.createJob(test.ids, *testBaseUrl, test.throttle)
+		actualJob, err := pubService.createJob(test.conceptType, test.ids, *testBaseUrl, test.throttle)
 
 		if err != nil {
 			if test.createErr != nil {
@@ -137,7 +140,7 @@ func TestCreateJob(t *testing.T) {
 		expectedJob := job{
 			JobID:       actualJob.JobID,
 			ConceptType: test.conceptType,
-			IDToTID:     test.idToTID,
+			IDs:         test.definedIDs,
 			URL:         *finalBaseUrl,
 			Throttle:    test.throttle,
 			Progress:    0,
@@ -145,7 +148,7 @@ func TestCreateJob(t *testing.T) {
 			FailedIDs:   []string{},
 		}
 		if !reflect.DeepEqual(*actualJob, expectedJob) {
-			t.Errorf("wrong job. diff got vs want:\n%v\n%v", *actualJob, expectedJob)
+			t.Errorf("test %v - wrong job. diff got vs want:\n%v\n%v", test.name, *actualJob, expectedJob)
 		}
 	}
 }
@@ -163,7 +166,7 @@ func TestDeleteJob(t *testing.T) {
 				"job_1": &job{
 					JobID:       "job_1",
 					ConceptType: "special-reports",
-					IDToTID:     make(map[string]string),
+					IDs:         []string{},
 					Throttle:    1,
 					Status:      completed,
 					FailedIDs:   []string{},
@@ -178,7 +181,7 @@ func TestDeleteJob(t *testing.T) {
 				"job_1": &job{
 					JobID:       "job_1",
 					ConceptType: "special-reports",
-					IDToTID:     make(map[string]string),
+					IDs:         []string{},
 					Throttle:    1,
 					Status:      inProgress,
 					FailedIDs:   []string{},
@@ -237,7 +240,7 @@ func TestRunJob(t *testing.T) {
 		staticIds               string
 		countFailure            *failure
 		queueSer                queue
-		idToTID                 map[string]string
+		definedIDs              []string
 		publishedIds            []string
 		failedIds               []string
 		status                  string
@@ -250,7 +253,7 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			queueSer:     allOkQueue{},
-			idToTID:      map[string]string{},
+			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
 			status:       completed,
@@ -264,7 +267,7 @@ func TestRunJob(t *testing.T) {
 			},
 			reloadErr:    errors.New("Can't reload"),
 			queueSer:     allOkQueue{},
-			idToTID:      map[string]string{},
+			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
 			status:       completed,
@@ -277,7 +280,7 @@ func TestRunJob(t *testing.T) {
 				"2": "X2",
 			},
 			queueSer:     allOkQueue{},
-			idToTID:      map[string]string{},
+			definedIDs:   []string{},
 			publishedIds: []string{"X1", "X2"},
 			failedIds:    []string{},
 			status:       completed,
@@ -294,7 +297,7 @@ func TestRunJob(t *testing.T) {
 				error:     errors.New("Some error in ids."),
 			},
 			queueSer:     allOkQueue{},
-			idToTID:      map[string]string{},
+			definedIDs:   []string{},
 			publishedIds: []string{},
 			failedIds:    []string{"", ""},
 			status:       completed,
@@ -307,7 +310,7 @@ func TestRunJob(t *testing.T) {
 				"2": "\"2",
 			},
 			queueSer:     allOkQueue{},
-			idToTID:      map[string]string{},
+			definedIDs:   []string{},
 			publishedIds: []string{"1"},
 			failedIds:    []string{"2"},
 			status:       completed,
@@ -320,11 +323,7 @@ func TestRunJob(t *testing.T) {
 				"3": "3",
 			},
 			queueSer: allOkQueue{},
-			idToTID: map[string]string{
-				"1": "",
-				"2": "",
-				"3": "",
-			},
+			definedIDs: []string{"1","2","3"},
 			publishedIds: []string{"1", "3"},
 			failedIds:    []string{"2"},
 			status:       completed,
@@ -337,7 +336,7 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			queueSer:     errorQueue{},
-			idToTID:      map[string]string{},
+			definedIDs:   []string{},
 			publishedIds: []string{},
 			failedIds:    []string{"1", "2"},
 			status:       completed,
@@ -354,7 +353,7 @@ func TestRunJob(t *testing.T) {
 				error:     errors.New("Some error in count."),
 			},
 			queueSer:     allOkQueue{},
-			idToTID:      map[string]string{},
+			definedIDs:   []string{},
 			publishedIds: []string{},
 			failedIds:    []string{},
 			status:       failed,
@@ -370,7 +369,7 @@ func TestRunJob(t *testing.T) {
 			//
 			{"xx":"2"}`,
 			queueSer:     allOkQueue{},
-			idToTID:      map[string]string{},
+			definedIDs:   []string{},
 			publishedIds: []string{"1"},
 			failedIds:    []string{""},
 			status:       completed,
@@ -384,14 +383,13 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			queueSer:     allOkQueue{},
-			idToTID:      map[string]string{},
+			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
 			status:       completed,
 		},
 	}
 	for _, test := range tests {
-		//t.Run(fmt.Sprintf("Running: %s", test.name), func(t *testing.T) {
 		clusterUrl, err := url.Parse("http://ip-172-24-158-162.eu-west-1.compute.internal:8080")
 		if err != nil {
 			t.Fatal(err)
@@ -417,7 +415,7 @@ func TestRunJob(t *testing.T) {
 			JobID:       "job_1",
 			URL:         *testBaseUrl,
 			ConceptType: "topics",
-			IDToTID:     test.idToTID,
+			IDs:         test.definedIDs,
 			Throttle:    test.throttle,
 			Status:      defined,
 			FailedIDs:   []string{},
@@ -449,16 +447,9 @@ func TestRunJob(t *testing.T) {
 				t.Errorf("Expected failed id %v couldn't be found in actual failures:", failedId)
 			}
 		}
-		for _, expectedPublishedId := range test.publishedIds {
-			_, ok := oneJob.IDToTID[expectedPublishedId]
-			if !ok {
-				t.Errorf("id %s didn't publish", expectedPublishedId)
-			}
-		}
 		if oneJob.Status != test.status {
 			t.Errorf("bad status. got %s, want %s", oneJob.Status, test.status)
 		}
-		//})
 	}
 }
 

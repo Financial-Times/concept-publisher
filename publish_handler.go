@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	log "github.com/Sirupsen/logrus"
@@ -33,6 +32,12 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
+	if jobRequest.ConceptType == "" {
+		err := "Concept type not specified. You need the field 'concept' as e.g. organisations, special-reports"
+		log.Warn(err)
+		http.Error(w, err, http.StatusBadRequest)
+		return
+	}
 	log.Infof("message=\"Concept publish request received\" %v", jobRequest)
 	if jobRequest.URL == "" {
 		err := "Base url empty"
@@ -46,45 +51,56 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	theJob, err := (*h.publishService).createJob(jobRequest.IDS, *url, jobRequest.Throttle)
+	theJob, err := (*h.publishService).createJob(jobRequest.ConceptType, jobRequest.IDS, *url, jobRequest.Throttle)
 	if err != nil {
 		log.Errorf("%v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	w.WriteHeader(http.StatusCreated)
 	w.Header().Add("Content-Type", "application/json")
 	type shortJob struct {
 		JobID string `json:"jobID"`
 	}
 	sj := shortJob{JobID: theJob.JobID}
-	var respBytes []byte
-	respBuff := bytes.NewBuffer(respBytes)
-	enc := json.NewEncoder(respBuff)
+	enc := json.NewEncoder(w)
 	err = enc.Encode(sj)
 	if err != nil {
 		log.Errorf("Error on json encoding=%v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	w.Write(respBytes)
 	go (*h.publishService).runJob(theJob, jobRequest.Authorization)
 }
 
 func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
-	status, err := (*h.publishService).getJob(id)
+	theJob, err := (*h.publishService).getJob(id)
 	if err != nil {
 		log.Errorf("message=\"Error returning job\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	var filteredJob *job
+	if _, ok := r.URL.Query()["full"]; !ok {
+		filteredJob = &job{
+			JobID: theJob.JobID,
+			ConceptType: theJob.ConceptType,
+			Count: theJob.Count,
+			Progress: theJob.Progress,
+			Status: theJob.Status,
+			Throttle: theJob.Throttle,
+			URL: theJob.URL,
+		}
+	} else {
+		filteredJob = theJob
+	}
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
-	status.RLock()
-	defer status.RUnlock()
-	if err := enc.Encode(status); err != nil {
+	theJob.RLock()
+	defer theJob.RUnlock()
+	if err := enc.Encode(filteredJob); err != nil {
 		log.Errorf("message=\"Error on json encoding\" %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

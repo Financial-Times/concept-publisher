@@ -9,16 +9,17 @@ type job struct {
 	sync.RWMutex
 	JobID       string            `json:"jobID"`
 	ConceptType string            `json:"conceptType"`
-	IDToTID     map[string]string `json:"IDToTID,omitempty"`
+	IDs         []string          `json:"IDToTID,omitempty"`
 	URL         url.URL           `json:"url"`
 	Throttle    int               `json:"throttle"`
 	Count       int               `json:"count"`
 	Progress    int               `json:"progress"`
 	Status      string            `json:"status"`
-	FailedIDs   []string          `json:"failedIDs"`
+	FailedIDs   []string          `json:"failedIDs,omitempty"`
 }
 
 type createJobRequest struct {
+	ConceptType   string   `json:"concept"`
 	URL           string   `json:"url"`
 	Throttle      int      `json:"throttle"`
 	Authorization string   `json:"authorization"`
