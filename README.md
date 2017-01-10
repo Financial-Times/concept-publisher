@@ -34,6 +34,7 @@ Return all the jobs' ids.
   * {url}/__count returns the number of concepts
   * {url}/__ids that lists the identities of the resources in the form '{"id":"abc"}\n{"id":"def"}'
   * {url}/{uid} that returns the transformed concept in UPP json format
+* gtgUrl: url to check that the transformer has finished reloading after a __reload call.
 * ids (optional): list if ids to publish - if the list is not empty ids will not be looked up via the __ids endpoint on the transformer and only the uuids from the list will be published
 * throttle: no of req/s when calling the transformers to get transformed content
 * authorization (optional)
@@ -41,9 +42,21 @@ Return all the jobs' ids.
 Examples:
 
 ```
-curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"url": "/__special-reports-transformer/transformers/special-reports/", "throttle": 1000, "authorization": "Basic base64user:pass"}'
+curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
+{
+  "url": "/__special-reports-transformer/transformers/special-reports/",
+  "gtgUrl": "/__special-reports-transformer/__gtg",
+  "throttle": 1000,
+  "authorization": "Basic base64user:pass"
+}'
 
-curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '{"ids":["uuid1","uuid2"],"url": "https://brands-transformer-up.ft.com/transformers/brands/", "throttle": 1000}'
+curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
+{
+  "ids": ["uuid1", "uuid2"],
+  "url": "https://brands-transformer-up.ft.com/transformers/brands/",
+  "gtgUrl": "https://brands-transformer-up.ft.com/build-info",
+  "throttle": 1000
+}'
 ```
 
 ### GET /jobs/{id}

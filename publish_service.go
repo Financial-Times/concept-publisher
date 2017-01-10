@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"sync"
 	"time"
-	"github.com/pkg/errors"
+	"errors"
 )
 
 const (
@@ -272,6 +272,7 @@ func (s publishService) deleteJob(jobID string) error {
 }
 
 func (p publishService) pollGtg(gtgUrl string) error {
+	log.Infof("Waiting on transformer to be good to go. url=%s", gtgUrl)
 	for i := 0; i < p.gtgRetries; i++ {
 		gtgErr := (*p.httpService).checkGtg(gtgUrl)
 		if gtgErr != nil {

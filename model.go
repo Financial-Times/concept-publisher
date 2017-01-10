@@ -10,7 +10,7 @@ type job struct {
 	ConceptType string            `json:"conceptType"`
 	IDs         []string          `json:"IDToTID,omitempty"`
 	URL         string            `json:"url"`
-	GtgURL      string            `json:"gtgURL"`
+	GtgURL      string            `json:"gtgUrl"`
 	Throttle    int               `json:"throttle"`
 	Count       int               `json:"count"`
 	Progress    int               `json:"progress"`

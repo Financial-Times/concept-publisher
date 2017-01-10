@@ -40,7 +40,7 @@ func (h httpCaller) reload(url string, authorization string) error {
 }
 
 func (h httpCaller) checkGtg(url string) error {
-	req, _ := http.NewRequest("POST", url, nil)
+	req, _ := http.NewRequest("GET", url, nil)
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("Could not connect to good-to-go endpoint url=%v err=%s", url, err)
