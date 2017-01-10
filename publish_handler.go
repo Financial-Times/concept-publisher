@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 )
 
 type publishHandler struct {
@@ -45,13 +44,7 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
-	url, err := url.Parse(jobRequest.URL)
-	if err != nil {
-		log.Warn("Invalid url: %v (%v)", jobRequest.URL, err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	theJob, err := (*h.publishService).createJob(jobRequest.ConceptType, jobRequest.IDS, *url, jobRequest.Throttle)
+	theJob, err := (*h.publishService).createJob(jobRequest.ConceptType, jobRequest.IDS, jobRequest.URL, jobRequest.GtgURL, jobRequest.Throttle)
 	if err != nil {
 		log.Errorf("%v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)

@@ -13,7 +13,7 @@ __Fetches concepts from concept-transformers and adds them to kafka.__
 go build
 
 # Open tunnel to publishing cluster:
-ssh -L 8083:localhost:8080 core@xp-tunnel-up.ft.com
+ssh -L 8083:localhost:8080 core@pub-xp-tunnel-up.ft.com
 
 # Set up tunnel for cluster address:
 export CLUSTER_ROUTER_ADDRESS="http://localhost:8083"

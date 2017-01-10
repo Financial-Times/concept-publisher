@@ -1,7 +1,6 @@
 package main
 
 import (
-	"net/url"
 	"sync"
 )
 
@@ -10,7 +9,8 @@ type job struct {
 	JobID       string            `json:"jobID"`
 	ConceptType string            `json:"conceptType"`
 	IDs         []string          `json:"IDToTID,omitempty"`
-	URL         url.URL           `json:"url"`
+	URL         string            `json:"url"`
+	GtgURL      string            `json:"gtgURL"`
 	Throttle    int               `json:"throttle"`
 	Count       int               `json:"count"`
 	Progress    int               `json:"progress"`
@@ -21,6 +21,7 @@ type job struct {
 type createJobRequest struct {
 	ConceptType   string   `json:"concept"`
 	URL           string   `json:"url"`
+	GtgURL        string   `json:"gtgUrl"`
 	Throttle      int      `json:"throttle"`
 	Authorization string   `json:"authorization"`
 	IDS           []string `json:"ids"`

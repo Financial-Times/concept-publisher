@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"sync"
 	"time"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -32,7 +33,7 @@ const (
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 func (j job) String() string {
-	return fmt.Sprintf("conceptType=%s url=%v count=%d throttle=%d status=%s progress=%d", j.ConceptType, j.URL, j.Count, j.Throttle, j.Status, j.Progress)
+	return fmt.Sprintf("conceptType=%s url=%v gtgUrl=%v count=%d throttle=%d status=%s progress=%d", j.ConceptType, j.URL, j.GtgURL, j.Count, j.Throttle, j.Status, j.Progress)
 }
 
 type concept struct {
@@ -46,36 +47,51 @@ type publishService struct {
 	queueService         *queue
 	jobs                 map[string]*job
 	httpService          *caller
+	gtgRetries           int
 }
 
-func newPublishService(clusterRouterAddress *url.URL, queueService *queue, httpService *caller) publishService {
+func newPublishService(clusterRouterAddress *url.URL, queueService *queue, httpService *caller, gtgRetries int) publishService {
 	return publishService{
 		clusterRouterAddress: clusterRouterAddress,
 		queueService:         queueService,
 		jobs:                 make(map[string]*job),
 		httpService:          httpService,
+		gtgRetries:           gtgRetries,
 	}
 }
 
 type publisher interface {
-	createJob(conceptType string, ids []string, baseURL url.URL, throttle int) (*job, error)
+	createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*job, error)
 	getJob(jobID string) (*job, error)
 	getJobIds() []string
 	runJob(theJob *job, authorization string)
 	deleteJob(jobID string) error
 }
 
-func (s publishService) createJob(conceptType string, ids []string, baseURL url.URL, throttle int) (*job, error) {
+func (s publishService) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
 	jobID := "job_" + generateID()
-	if baseURL.Host == "" {
-		baseURL.Scheme = s.clusterRouterAddress.Scheme
-		baseURL.Host = s.clusterRouterAddress.Host
+	baseURLParsed, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, err
+	}
+	if baseURLParsed.Host == "" {
+		baseURLParsed.Scheme = s.clusterRouterAddress.Scheme
+		baseURLParsed.Host = s.clusterRouterAddress.Host
+	}
+	gtgURLParsed, err := url.Parse(gtgURL)
+	if err != nil {
+		return nil, err
+	}
+	if gtgURLParsed.Host == "" {
+		gtgURLParsed.Scheme = s.clusterRouterAddress.Scheme
+		gtgURLParsed.Host = s.clusterRouterAddress.Host
 	}
 	theJob := &job{
 		JobID:       jobID,
 		ConceptType: conceptType,
 		IDs:         ids,
-		URL:         baseURL,
+		URL:         baseURLParsed.String(),
+		GtgURL:      gtgURLParsed.String(),
 		Throttle:    throttle,
 		Progress:    0,
 		Status:      defined,
@@ -114,15 +130,22 @@ func (p publishService) runJob(theJob *job, authorization string) {
 	theJob.updateStatus(inProgress)
 	concepts := make(chan concept, loadBuffer)
 	failures := make(chan failure, loadBuffer)
-	err := (*p.httpService).reload(theJob.URL.String()+reloadSuffix, authorization)
+	err := (*p.httpService).reload(theJob.URL+reloadSuffix, authorization)
 	if err != nil {
 		log.Infof("message=\"Couldn't reload concepts\" conceptType=\"%s\" %v", theJob.ConceptType, err)
+	} else {
+		gtgErr := p.pollGtg(theJob.GtgURL)
+		if gtgErr != nil {
+			log.Warnf("Timed out while waiting for transformer to reload. url=%v", theJob.GtgURL)
+			theJob.updateStatus(failed)
+			return
+		}
 	}
 	var jobCount int
 	if len(theJob.IDs) > 0 {
 		jobCount = len(theJob.IDs)
 	} else {
-		jobCount, err = (*p.httpService).getCount(theJob.URL.String()+countSuffix, authorization)
+		jobCount, err = (*p.httpService).getCount(theJob.URL+countSuffix, authorization)
 		if err != nil {
 			log.Warnf("message=\"Could not determine count for concepts. Job failed.\" conceptType=\"%s\" %v", theJob.ConceptType, err)
 			theJob.updateStatus(failed)
@@ -186,7 +209,7 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 }
 
 func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<- string, failures chan<- failure) {
-	body, fail := (*p.httpService).getIds(theJob.URL.String()+idsSuffix, authorization)
+	body, fail := (*p.httpService).getIds(theJob.URL+idsSuffix, authorization)
 	if fail != nil {
 		fillFailures(fail, theJob.Count, failures)
 		return
@@ -198,7 +221,7 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 			if err == io.EOF {
 				break
 			}
-			log.Warnf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL.String(), err)
+			log.Warnf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL, err)
 			continue
 		}
 		reader2 := bufio.NewReader(bytes.NewReader(line))
@@ -209,7 +232,7 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 		dec := json.NewDecoder(reader2)
 		err2 := dec.Decode(&le)
 		if err2 != nil {
-			fail := newFailure("", fmt.Errorf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL.String(), err2))
+			fail := newFailure("", fmt.Errorf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL, err2))
 			pushToFailures(fail, failures)
 			continue
 		}
@@ -227,7 +250,7 @@ func (p publishService) fetchConcepts(theJob *job, authorization string, concept
 		if theJob.Throttle > 0 {
 			<-ticker.C
 		}
-		data, fail := (*p.httpService).fetchConcept(id, theJob.URL.String()+id, authorization)
+		data, fail := (*p.httpService).fetchConcept(id, theJob.URL+id, authorization)
 		if fail != nil {
 			log.Warnf("coulnd't fetch concept, putting it to failures %v", id)
 			pushToFailures(fail, failures)
@@ -246,6 +269,18 @@ func (s publishService) deleteJob(jobID string) error {
 	defer s.Unlock()
 	delete(s.jobs, jobID)
 	return nil
+}
+
+func (p publishService) pollGtg(gtgUrl string) error {
+	for i := 0; i < p.gtgRetries; i++ {
+		gtgErr := (*p.httpService).checkGtg(gtgUrl)
+		if gtgErr != nil {
+			time.Sleep(time.Second * 2)
+		} else {
+			return nil
+		}
+	}
+	return errors.New("Timed out")
 }
 
 func pushToFailures(fail *failure, failures chan<- failure) {

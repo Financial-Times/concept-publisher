@@ -35,6 +35,12 @@ func main() {
 		Desc:   "The topic to write the V1 metadata to. (e.g. Concepts)",
 		EnvVar: "TOPIC",
 	})
+	gtgRetries := app.Int(cli.IntOpt{
+		Name:   "transformer-gtg-retries",
+		Value:  10,
+		Desc:   "The number of times concept-publisher should try to poll a transformer's good-to-go endpoint if that responds to __reload with 2xx status. It's doing the reload concurrently, that's why we're waiting, the question is how much. One period is 2 seconds.",
+		EnvVar: "TRANSFORMER-GTG-RETRIES",
+	})
 	clusterRouterAddress := app.String(cli.StringOpt{
 		Name:   "cluster-router-address",
 		Value:  "http://ip-172-24-90-237.eu-west-1.compute.internal:8080",
@@ -58,7 +64,7 @@ func main() {
 		}
 		var queueService queue = newQueueService(&messageProducer)
 		var httpCall caller = newHttpCaller(httpClient)
-		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall)
+		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries)
 		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
 		pubHandler := newPublishHandler(&publishService)
 		assignHandlers(*port, &pubHandler, &healthHandler)
