@@ -85,6 +85,7 @@ func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 			Status: theJob.Status,
 			Throttle: theJob.Throttle,
 			URL: theJob.URL,
+			GtgURL: theJob.GtgURL,
 		}
 	} else {
 		filteredJob = theJob
