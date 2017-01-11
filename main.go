@@ -37,8 +37,8 @@ func main() {
 	})
 	gtgRetries := app.Int(cli.IntOpt{
 		Name:   "transformer-gtg-retries",
-		Value:  10,
-		Desc:   "The number of times concept-publisher should try to poll a transformer's good-to-go endpoint if that responds to __reload with 2xx status. It's doing the reload concurrently, that's why we're waiting, the question is how much. One period is 2 seconds.",
+		Value:  60,
+		Desc:   "The number of times concept-publisher should try to poll a transformer's good-to-go endpoint if that responds to __reload with 2xx status. It's doing the reload concurrently, that's why we're waiting, the question is how much. One period is 5 seconds.",
 		EnvVar: "TRANSFORMER_GTG_RETRIES",
 	})
 	clusterRouterAddress := app.String(cli.StringOpt{

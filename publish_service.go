@@ -276,7 +276,7 @@ func (p publishService) pollGtg(gtgUrl string) error {
 	for i := 0; i < p.gtgRetries; i++ {
 		gtgErr := (*p.httpService).checkGtg(gtgUrl)
 		if gtgErr != nil {
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Second * 5)
 		} else {
 			return nil
 		}
