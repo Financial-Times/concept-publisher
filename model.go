@@ -12,8 +12,8 @@ type job struct {
 	URL         string            `json:"url"`
 	GtgURL      string            `json:"gtgUrl"`
 	Throttle    int               `json:"throttle"`
-	Count       int               `json:"count"`
-	Progress    int               `json:"progress"`
+	Count       uint64            `json:"count"`
+	Progress    uint64            `json:"progress"`
 	Status      string            `json:"status"`
 	FailedIDs   []string          `json:"failedIDs,omitempty"`
 }
@@ -33,13 +33,13 @@ func (theJob *job) updateStatus(status string) {
 	theJob.Unlock()
 }
 
-func (theJob *job) updateCount(count int) {
+func (theJob *job) updateCount(count uint64) {
 	theJob.Lock()
 	theJob.Count = count
 	theJob.Unlock()
 }
 
-func (theJob *job) updateProgress() {
+func (theJob *job) incrementProgress() {
 	theJob.Lock()
 	theJob.Progress++
 	theJob.Unlock()

@@ -318,7 +318,7 @@ func TestRunJob(t *testing.T) {
 			queueSer:     allOkQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{},
-			failedIds:    []string{"", ""},
+			failedIds:    []string{},
 			status:       completed,
 		},
 		{
@@ -373,9 +373,9 @@ func TestRunJob(t *testing.T) {
 			},
 			queueSer:     allOkQueue{},
 			definedIDs:   []string{},
-			publishedIds: []string{},
+			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
-			status:       failed,
+			status:       completed,
 		},
 		{
 			name:    "nine",
@@ -458,7 +458,7 @@ func TestRunJob(t *testing.T) {
 
 			}
 			if !found {
-				t.Errorf("Expected failed id %v couldn't be found in actual failures:", failedId)
+				t.Errorf("%v - Expected failed id %v couldn't be found in actual failures:", test.name, failedId)
 			}
 		}
 		if oneJob.Status != test.status {

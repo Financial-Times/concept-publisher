@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"sync"
 	"time"
+	"sync/atomic"
 )
 
 const (
@@ -26,7 +27,6 @@ const (
 
 	reloadSuffix = "__reload"
 	idsSuffix    = "__ids"
-	countSuffix  = "__count"
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -140,20 +140,10 @@ func (p publishService) runJob(theJob *job, authorization string) {
 			return
 		}
 	}
-	var jobCount int
-	if len(theJob.IDs) > 0 {
-		jobCount = len(theJob.IDs)
-	} else {
-		jobCount, err = (*p.httpService).getCount(theJob.URL+countSuffix, authorization)
-		if err != nil {
-			log.Warnf("message=\"Could not determine count for concepts. Job failed.\" conceptType=\"%s\" %v", theJob.ConceptType, err)
-			theJob.updateStatus(failed)
-			return
-		}
-	}
-	theJob.updateCount(jobCount)
-	go p.fetchAll(theJob, authorization, concepts, failures)
-	for theJob.Progress = 0; theJob.Progress < jobCount; theJob.updateProgress() {
+	var idsCount uint64 = 0
+	var idsCounted uint64 = 0
+	go p.fetchAll(theJob, authorization, &idsCounted, &idsCount, concepts, failures)
+	for theJob.Progress = 0; atomic.LoadUint64(&idsCounted) == 0 || theJob.Progress < atomic.LoadUint64(&idsCount); theJob.incrementProgress() {
 		select {
 		case f := <-failures:
 			log.Warnf("message=\"failure at a concept, in a job\" jobID=%v conceptID=%v %v", theJob.JobID, f.conceptID, f.error)
@@ -184,7 +174,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 	log.Infof("message=\"Completed job\" jobID=%s status=%s count=%d nFailedIds=%d", theJob.JobID, theJob.Status, theJob.Count, len(theJob.FailedIDs))
 }
 
-func (s publishService) fetchAll(theJob *job, authorization string, concepts chan<- concept, failures chan<- failure) {
+func (s publishService) fetchAll(theJob *job, authorization string, idsCounted *uint64, idsCount *uint64, concepts chan<- concept, failures chan<- failure) {
 	ticker := time.NewTicker(time.Second / 1000)
 	if theJob.Throttle > 0 {
 		ticker = time.NewTicker(time.Second / time.Duration(theJob.Throttle))
@@ -192,25 +182,33 @@ func (s publishService) fetchAll(theJob *job, authorization string, concepts cha
 	idsChan := make(chan string, loadBuffer)
 	if len(theJob.IDs) > 0 {
 		go func() {
+			var ids []string
 			theJob.RLock()
-			defer theJob.RUnlock()
-			for _, id := range theJob.IDs {
+			ids = theJob.IDs
+			theJob.RUnlock()
+			for _, id := range ids {
 				idsChan <- id
+				atomic.AddUint64(idsCount, 1)
 			}
+			atomic.AddUint64(idsCounted, 1)
+			theJob.updateCount(atomic.LoadUint64(idsCount))
 			close(idsChan)
 		}()
 	} else {
-		go s.fetchIDList(theJob, authorization, idsChan, failures)
+		go s.fetchIDList(theJob, authorization, idsCounted, idsCount, idsChan, failures)
 	}
 	for i := 0; i < concurrentReaders; i++ {
 		go s.fetchConcepts(theJob, authorization, concepts, idsChan, failures, ticker)
 	}
 }
 
-func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<- string, failures chan<- failure) {
+func (p publishService) fetchIDList(theJob *job, authorization string, idsCounted *uint64, idsCount *uint64, ids chan<- string, failures chan<- failure) {
 	body, fail := (*p.httpService).getIds(theJob.URL+idsSuffix, authorization)
 	if fail != nil {
-		fillFailures(fail, theJob.Count, failures)
+		pushToFailures(fail, failures)
+		atomic.AddUint64(idsCounted, 1)
+		atomic.AddUint64(idsCount, 1)
+		close(ids)
 		return
 	}
 	reader := bufio.NewReader(bytes.NewReader(body))
@@ -223,6 +221,7 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 			log.Warnf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL, err)
 			continue
 		}
+		atomic.AddUint64(idsCount, 1)
 		reader2 := bufio.NewReader(bytes.NewReader(line))
 		type listEntry struct {
 			ID string `json:"id"`
@@ -237,6 +236,8 @@ func (p publishService) fetchIDList(theJob *job, authorization string, ids chan<
 		}
 		ids <- le.ID
 	}
+	atomic.AddUint64(idsCounted, 1)
+	theJob.updateCount(atomic.LoadUint64(idsCount))
 	close(ids)
 }
 
@@ -286,12 +287,6 @@ func (p publishService) pollGtg(gtgUrl string) error {
 func pushToFailures(fail *failure, failures chan<- failure) {
 	select {
 	case failures <- *fail:
-	}
-}
-
-func fillFailures(fail *failure, count int, failures chan<- failure) {
-	for i := 0; i < count; i++ {
-		pushToFailures(fail, failures)
 	}
 }
 
