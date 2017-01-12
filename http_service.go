@@ -106,7 +106,7 @@ func (h httpCaller) fetchConcept(conceptID string, url string, authorization str
 		return nil, newFailure(conceptID, fmt.Errorf("message=\"Could not make HTTP request to fetch a concept\" conceptId=%v %v", conceptID, err))
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, newFailure(conceptID, fmt.Errorf("message=\"Fetching a concept resulted in not ok response\" conceptId=%v jobId=%v status=%v", conceptID, url, resp.StatusCode))
+		return nil, newFailure(conceptID, fmt.Errorf("Fetching a concept resulted in not ok response conceptId=%v url=%v status=%v", conceptID, url, resp.StatusCode))
 	}
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

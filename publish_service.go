@@ -12,7 +12,6 @@ import (
 	"reflect"
 	"sync"
 	"time"
-	"errors"
 )
 
 const (
@@ -281,7 +280,7 @@ func (p publishService) pollGtg(gtgUrl string) error {
 			return nil
 		}
 	}
-	return errors.New("Timed out")
+	return fmt.Errorf("Timed out. Did you put the correct gtgUrl field on your create job request? url=%v", gtgUrl)
 }
 
 func pushToFailures(fail *failure, failures chan<- failure) {
