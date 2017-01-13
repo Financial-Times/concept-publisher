@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/golang/go/src/pkg/bytes"
-	"github.com/pkg/errors"
+	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
