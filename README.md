@@ -35,6 +35,7 @@ Return all the jobs' ids.
   * {url}/__ids that lists the identities of the resources in the form '{"id":"abc"}\n{"id":"def"}'
   * {url}/{uid} that returns the transformed concept in UPP json format
 * gtgUrl: url to check that the transformer has finished reloading after a __reload call.
+Not all applications expose a good-to-go endpoint, if you still want a successful publish, make sure they don't expose __reload either (than it doesn't come to ask for __gtg) or put a dummy endpoint that works and gives a 200.
 * ids (optional): list if ids to publish - if the list is not empty ids will not be looked up via the __ids endpoint on the transformer and only the uuids from the list will be published
 * throttle: no of req/s when calling the transformers to get transformed content
 * authorization (optional)
