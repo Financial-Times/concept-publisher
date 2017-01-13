@@ -17,6 +17,7 @@ func newHttpCaller(httpClient *http.Client) httpCaller {
 
 type caller interface {
 	reload(url string, authorization string) error
+	checkGtg(url string) error
 	getIds(url string, authorization string) ([]byte, *failure)
 	getCount(url string, authorization string) (int, error)
 	fetchConcept(conceptID string, url string, authorization string) ([]byte, *failure)
@@ -32,8 +33,21 @@ func (h httpCaller) reload(url string, authorization string) error {
 		return fmt.Errorf("message=\"Could not connect to reload concepts\" url=\"%v\" err=\"%s\"", url, err)
 	}
 	defer closeNice(resp)
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode / 100 != 2 {
 		return fmt.Errorf("message=\"Incorrect status when reloading concepts\" status=%d url=\"%s\"", resp.StatusCode, url)
+	}
+	return nil
+}
+
+func (h httpCaller) checkGtg(url string) error {
+	req, _ := http.NewRequest("GET", url, nil)
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("Could not connect to good-to-go endpoint url=%v err=%s", url, err)
+	}
+	defer closeNice(resp)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Incorrect status on good-to-go status=%d url=%s", resp.StatusCode, url)
 	}
 	return nil
 }
@@ -92,7 +106,7 @@ func (h httpCaller) fetchConcept(conceptID string, url string, authorization str
 		return nil, newFailure(conceptID, fmt.Errorf("message=\"Could not make HTTP request to fetch a concept\" conceptId=%v %v", conceptID, err))
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, newFailure(conceptID, fmt.Errorf("message=\"Fetching a concept resulted in not ok response\" conceptId=%v jobId=%v status=%v", conceptID, url, resp.StatusCode))
+		return nil, newFailure(conceptID, fmt.Errorf("Fetching a concept resulted in not ok response conceptId=%v url=%v status=%v", conceptID, url, resp.StatusCode))
 	}
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

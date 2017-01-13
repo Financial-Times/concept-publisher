@@ -5,7 +5,6 @@ import (
 	"github.com/pkg/errors"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,7 +14,7 @@ func TestHandlerCreateJob(t *testing.T) {
 	tests := []struct {
 		name           string
 		httpBody       string
-		createJobF     func(ids []string, baseURL url.URL, throttle int) (*job, error)
+		createJobF     func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error)
 		expectedStatus int
 	}{
 		{
@@ -36,7 +35,7 @@ func TestHandlerCreateJob(t *testing.T) {
 		{
 			name:           "missing fields",
 			httpBody:       `{"concept":"topics", "url":"/__topics-transformer/transformers/topics"}`,
-			createJobF:     func(ids []string, baseURL url.URL, throttle int) (*job, error) {
+			createJobF:     func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
 				return &job{JobID: "1"}, nil
 			},
 			expectedStatus: http.StatusCreated,
@@ -44,7 +43,7 @@ func TestHandlerCreateJob(t *testing.T) {
 		{
 			name:           "error at subsequent call",
 			httpBody:       `{"concept":"topics", "url":"/__topics-transformer/transformers/topics", "throttle": 100}`,
-			createJobF:     func(ids []string, baseURL url.URL, throttle int) (*job, error) {
+			createJobF:     func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
 				return nil, errors.New("error creating job because of something")
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -123,7 +122,6 @@ func TestHandlerStatus(t *testing.T) {
 func TestHandlerJobs(t *testing.T) {
 	tests := []struct {
 		name string
-		//IDs            []string
 		getJobIdsF     func() []string
 		expectedStatus int
 		expectedBody   string
@@ -214,15 +212,15 @@ func TestHandlerDeleteJob(t *testing.T) {
 }
 
 type mockedPublisher struct {
-	createJobF func(ids []string, baseURL url.URL, throttle int) (*job, error)
+	createJobF func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error)
 	getJobF    func(jobID string) (*job, error)
 	getJobIdsF func() []string
 	runJobF    func(theJob *job, authorization string)
 	deleteJobF func(jobID string) error
 }
 
-func (p mockedPublisher) createJob(conceptType string, ids []string, baseURL url.URL, throttle int) (*job, error) {
-	return p.createJobF(ids, baseURL, throttle)
+func (p mockedPublisher) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
+	return p.createJobF(ids, baseURL, baseURL+"__gtg", throttle)
 }
 
 func (p mockedPublisher) getJob(jobID string) (*job, error) {

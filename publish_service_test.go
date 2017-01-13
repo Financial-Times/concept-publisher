@@ -17,7 +17,7 @@ func TestGetJobIds_Empty(t *testing.T) {
 	}
 	var mockQueueSer queue = allOkQueue{}
 	var mockHttpSer caller = nilHttpService{}
-	pubService := newPublishService(url, &mockQueueSer, &mockHttpSer)
+	pubService := newPublishService(url, &mockQueueSer, &mockHttpSer, 1)
 	actualIds := pubService.getJobIds()
 	expectedIds := []string{}
 	if !reflect.DeepEqual(actualIds, expectedIds) {
@@ -45,67 +45,79 @@ func TestCreateJob(t *testing.T) {
 		name         string
 		clusterUrl   string
 		baseUrl      string
+		gtgUrl       string
 		conceptType  string
 		ids          []string
 		throttle     int
 		createErr    error
 		definedIDs   []string
 		finalBaseUrl string
+		finalGtgUrl string
 	}{
 		{
 			name:         "one",
 			clusterUrl:   "http://localhost:8080",
 			baseUrl:      "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			gtgUrl:       "http://localhost:8080/__special-reports-transformer/__gtg",
 			conceptType:  "special-reports",
 			ids:          []string{},
 			throttle:     1,
 			createErr:    nil,
 			definedIDs:   []string{},
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			finalGtgUrl:  "http://localhost:8080/__special-reports-transformer/__gtg",
 		},
 		{
 			name:         "two",
 			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
 			baseUrl:      "/__special-reports-transformer/transformers/special-reports",
+			gtgUrl:       "/__special-reports-transformer/__gtg",
 			conceptType:  "special-reports-otherwise",
 			ids:          []string{},
 			throttle:     1,
 			createErr:    nil,
 			definedIDs:   []string{},
 			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/transformers/special-reports",
+			finalGtgUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/__gtg",
 		},
 		{
 			name:         "three",
 			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
 			baseUrl:      "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
+			gtgUrl:       "http://somethingelse:9090/__special-reports-transformer/__gtg",
 			conceptType:  "special-reports",
 			ids:          []string{},
 			throttle:     1,
 			createErr:    nil,
 			definedIDs:   []string{},
 			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
+			finalGtgUrl:  "http://somethingelse:9090/__special-reports-transformer/__gtg",
 		},
 		{
 			name:         "four",
 			clusterUrl:   "http://localhost:8080",
 			baseUrl:      "/__special-reports-transformer/transformers/topics/",
+			gtgUrl:       "/__special-reports-transformer/__gtg",
 			conceptType:  "topics",
 			ids:          []string{},
 			throttle:     1,
 			createErr:    nil,
 			definedIDs:   []string{},
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
+			finalGtgUrl:     "http://localhost:8080/__special-reports-transformer/__gtg",
 		},
 		{
 			name:         "five",
 			clusterUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
 			baseUrl:     "/__topics-transformer/transformers/topics/",
+			gtgUrl:      "/__topics-transformer/__gtg",
 			conceptType: "topics",
 			ids:         []string{"1", "2"},
 			throttle:    1,
 			createErr:   nil,
 			definedIDs:  []string{"1", "2"},
 			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
+			finalGtgUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/__gtg",
 		},
 	}
 	for _, test := range tests {
@@ -115,18 +127,8 @@ func TestCreateJob(t *testing.T) {
 		}
 		var mockQueueSer queue = allOkQueue{}
 		var mockHttpSer caller = nilHttpService{}
-		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer)
-		testBaseUrl, err := url.Parse(test.baseUrl)
-		if err != nil {
-			t.Error(err)
-		}
-		finalBaseUrl, err := url.Parse(test.finalBaseUrl)
-		if err != nil {
-			t.Error(err)
-		}
-
-		actualJob, err := pubService.createJob(test.conceptType, test.ids, *testBaseUrl, test.throttle)
-
+		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
+		actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseUrl, test.gtgUrl, test.throttle)
 		if err != nil {
 			if test.createErr != nil {
 				if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
@@ -141,7 +143,8 @@ func TestCreateJob(t *testing.T) {
 			JobID:       actualJob.JobID,
 			ConceptType: test.conceptType,
 			IDs:         test.definedIDs,
-			URL:         *finalBaseUrl,
+			URL:         test.finalBaseUrl,
+			GtgURL:      test.finalGtgUrl,
 			Throttle:    test.throttle,
 			Progress:    0,
 			Status:      defined,
@@ -209,6 +212,7 @@ func TestDeleteJob(t *testing.T) {
 			queueService:        &mockQueueSer,
 			jobs:                 test.jobs,
 			httpService:          &mockHttpSer,
+			gtgRetries:           1,
 		}
 
 		err = pubService.deleteJob(test.jobIDToDelete)
@@ -236,6 +240,7 @@ func TestRunJob(t *testing.T) {
 		throttle                int
 		definedIdsToResolvedIds map[string]string
 		reloadErr               error
+		gtgErr                  error
 		idsFailure              *failure
 		staticIds               string
 		countFailure            *failure
@@ -259,7 +264,7 @@ func TestRunJob(t *testing.T) {
 			status:       completed,
 		},
 		{
-			name:    "two",
+			name:    "reload error to ignore",
 			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -271,6 +276,20 @@ func TestRunJob(t *testing.T) {
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
 			status:       completed,
+		},
+		{
+			name:    "reload ok but gtg times out",
+			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			definedIdsToResolvedIds: map[string]string{
+				"1": "1",
+				"2": "2",
+			},
+			gtgErr:       errors.New("Timed out"),
+			queueSer:     allOkQueue{},
+			definedIDs:   []string{},
+			publishedIds: []string{},
+			failedIds:    []string{},
+			status:       failed,
 		},
 		{
 			name:    "three",
@@ -299,7 +318,7 @@ func TestRunJob(t *testing.T) {
 			queueSer:     allOkQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{},
-			failedIds:    []string{"", ""},
+			failedIds:    []string{},
 			status:       completed,
 		},
 		{
@@ -354,9 +373,9 @@ func TestRunJob(t *testing.T) {
 			},
 			queueSer:     allOkQueue{},
 			definedIDs:   []string{},
-			publishedIds: []string{},
+			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
-			status:       failed,
+			status:       completed,
 		},
 		{
 			name:    "nine",
@@ -397,23 +416,17 @@ func TestRunJob(t *testing.T) {
 		var mockQueueSer queue = test.queueSer
 		var mockHttpSer caller = definedIdsHttpService{
 			definedToResolvedIs: test.definedIdsToResolvedIds,
-			reloadF: func(string, string) error {
+			reloadF:             func(string, string) error {
 				return test.reloadErr
 			},
-			idsFailure:   test.idsFailure,
-			countFailure: test.countFailure,
-			staticIds:    test.staticIds,
-		}
-		if err != nil {
-			t.Fatalf("unexpected error. %v", err)
-		}
-		testBaseUrl, err := url.Parse(test.baseURL)
-		if err != nil {
-			t.Fatalf("unexpected error. %v", err)
+			gtgErr:              test.gtgErr,
+			idsFailure:          test.idsFailure,
+			countFailure:        test.countFailure,
+			staticIds:           test.staticIds,
 		}
 		oneJob := &job{
 			JobID:       "job_1",
-			URL:         *testBaseUrl,
+			URL:         test.baseURL,
 			ConceptType: "topics",
 			IDs:         test.definedIDs,
 			Throttle:    test.throttle,
@@ -428,6 +441,7 @@ func TestRunJob(t *testing.T) {
 				"job_1": oneJob,
 			},
 			httpService: &mockHttpSer,
+			gtgRetries:  1,
 		}
 		pubService.runJob(oneJob, "Basic 1234")
 		if test.throttle > 0 {
@@ -444,11 +458,11 @@ func TestRunJob(t *testing.T) {
 
 			}
 			if !found {
-				t.Errorf("Expected failed id %v couldn't be found in actual failures:", failedId)
+				t.Errorf("%v - Expected failed id %v couldn't be found in actual failures:", test.name, failedId)
 			}
 		}
 		if oneJob.Status != test.status {
-			t.Errorf("bad status. got %s, want %s", oneJob.Status, test.status)
+			t.Errorf("%v - bad status. got %s, want %s", test.name, oneJob.Status, test.status)
 		}
 	}
 }
@@ -494,6 +508,10 @@ func (h nilHttpService) reload(url string, authorization string) error {
 	return nil
 }
 
+func (h nilHttpService) checkGtg(url string) error {
+	return nil
+}
+
 func (h nilHttpService) getIds(url string, authorization string) ([]byte, *failure) {
 	return []byte{}, nil
 }
@@ -509,6 +527,7 @@ func (h nilHttpService) fetchConcept(conceptID string, url string, authorization
 type definedIdsHttpService struct {
 	definedToResolvedIs map[string]string
 	reloadF             func(string, string) error
+	gtgErr              error
 	idsFailure          *failure
 	staticIds           string
 	countFailure        *failure
@@ -516,6 +535,10 @@ type definedIdsHttpService struct {
 
 func (h definedIdsHttpService) reload(url string, authorization string) error {
 	return h.reloadF(url, authorization)
+}
+
+func (h definedIdsHttpService) checkGtg(url string) error {
+	return h.gtgErr
 }
 
 func (h definedIdsHttpService) getCount(url string, authorization string) (int, error) {
