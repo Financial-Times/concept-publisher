@@ -29,6 +29,7 @@ Return all the jobs' ids.
 
 ### POST /jobs
 
+* concept: the name of the concept type. It's important because there are unusual cases when this name differs from what is in the URL path.
 * url: url to use to get the transformed concept
   * can either be absolute of relative - for relative the base url is the CLUSTER_ROUTER_ADDRESS
   * {url}/__count returns the number of concepts
@@ -45,6 +46,7 @@ Examples:
 ```
 curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
 {
+  "concept": "special-reports",
   "url": "/__special-reports-transformer/transformers/special-reports/",
   "gtgUrl": "/__special-reports-transformer/__gtg",
   "throttle": 1000,
@@ -53,6 +55,7 @@ curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
 
 curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
 {
+  "concept": "brands",
   "ids": ["uuid1", "uuid2"],
   "url": "https://brands-transformer-up.ft.com/transformers/brands/",
   "gtgUrl": "https://brands-transformer-up.ft.com/build-info",
