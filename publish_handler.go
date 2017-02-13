@@ -44,7 +44,7 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
-	theJob, err := (*h.publishService).createJob(jobRequest.ConceptType, jobRequest.IDS, jobRequest.URL, jobRequest.GtgURL, jobRequest.Throttle)
+	theJob, err := (*h.publishService).createJob(jobRequest.ConceptType, jobRequest.IDS, jobRequest.URL, jobRequest.GtgURL, jobRequest.Throttle, jobRequest.SendToKafka)
 	if err != nil {
 		log.Errorf("%v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -78,14 +78,14 @@ func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	var filteredJob *job
 	if _, ok := r.URL.Query()["full"]; !ok {
 		filteredJob = &job{
-			JobID: theJob.JobID,
+			JobID:       theJob.JobID,
 			ConceptType: theJob.ConceptType,
-			Count: theJob.Count,
-			Progress: theJob.Progress,
-			Status: theJob.Status,
-			Throttle: theJob.Throttle,
-			URL: theJob.URL,
-			GtgURL: theJob.GtgURL,
+			Count:       theJob.Count,
+			Progress:    theJob.Progress,
+			Status:      theJob.Status,
+			Throttle:    theJob.Throttle,
+			URL:         theJob.URL,
+			GtgURL:      theJob.GtgURL,
 		}
 	} else {
 		filteredJob = theJob

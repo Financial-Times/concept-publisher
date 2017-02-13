@@ -5,14 +5,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/Financial-Times/message-queue-go-producer/producer"
+	"github.com/Shopify/sarama"
 	log "github.com/Sirupsen/logrus"
 	"io"
 	"math/rand"
 	"net/url"
 	"reflect"
+	"sort"
 	"sync"
-	"time"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -27,6 +30,8 @@ const (
 
 	reloadSuffix = "__reload"
 	idsSuffix    = "__ids"
+
+	CRLF = "\r\n"
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -47,27 +52,29 @@ type publishService struct {
 	jobs                 map[string]*job
 	httpService          *caller
 	gtgRetries           int
+	producer             *sarama.SyncProducer
 }
 
-func newPublishService(clusterRouterAddress *url.URL, queueService *queue, httpService *caller, gtgRetries int) publishService {
+func newPublishService(clusterRouterAddress *url.URL, queueService *queue, httpService *caller, gtgRetries int, producer *sarama.SyncProducer) publishService {
 	return publishService{
 		clusterRouterAddress: clusterRouterAddress,
 		queueService:         queueService,
 		jobs:                 make(map[string]*job),
 		httpService:          httpService,
 		gtgRetries:           gtgRetries,
+		producer:             producer,
 	}
 }
 
 type publisher interface {
-	createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*job, error)
+	createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int, sendToKafka bool) (*job, error)
 	getJob(jobID string) (*job, error)
 	getJobIds() []string
 	runJob(theJob *job, authorization string)
 	deleteJob(jobID string) error
 }
 
-func (s publishService) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
+func (s publishService) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int, sendToKafka bool) (*job, error) {
 	jobID := "job_" + generateID()
 	baseURLParsed, err := url.Parse(baseURL)
 	if err != nil {
@@ -95,6 +102,7 @@ func (s publishService) createJob(conceptType string, ids []string, baseURL stri
 		Progress:    0,
 		Status:      defined,
 		FailedIDs:   []string{},
+		SendToKafka: sendToKafka,
 	}
 	s.Lock()
 	defer s.Unlock()
@@ -163,7 +171,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 				log.Infof("message=\"initial uuid doesn't match fetched resolved uuid\" originalUuid=%v resolvedUuid=%v jobId=%v", c.id, resolvedID, theJob.JobID)
 			}
 			tid := "tid_" + generateID()
-			err := (*p.queueService).sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
+			err := p.sendToQueueService(resolvedID, theJob.ConceptType, tid, &c.payload, theJob.SendToKafka)
 			if err != nil {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
@@ -172,6 +180,46 @@ func (p publishService) runJob(theJob *job, authorization string) {
 	}
 	theJob.updateStatus(completed)
 	log.Infof("message=\"Completed job\" jobID=%s status=%s count=%d nFailedIds=%d", theJob.JobID, theJob.Status, theJob.Count, len(theJob.FailedIDs))
+}
+
+func (p publishService) sendToQueueService(id string, conceptType string, tid string, payload *[]byte, sendToKafka bool) error {
+	if sendToKafka {
+		pmsg := producer.Message{
+			Headers: buildHeader(id, conceptType, tid),
+			Body:    string(*payload),
+		}
+		bmsg := buildMessage(pmsg)
+		msg := &sarama.ProducerMessage{Topic: "TestBridge", Value: sarama.StringEncoder(bmsg)}
+		partition, offset, err := (*p.producer).SendMessage(msg)
+		if err == nil {
+			log.Infof("> message sent to partition %d at offset %d\n", partition, offset)
+		}
+		return err
+	}
+	return (*p.queueService).sendMessage(id, conceptType, tid, *payload)
+}
+
+func buildMessage(message producer.Message) string {
+
+	builtMessage := "FTMSG/1.0" + CRLF
+
+	var keys []string
+
+	//order headers
+	for header := range message.Headers {
+		keys = append(keys, header)
+	}
+	sort.Strings(keys)
+
+	//set headers
+	for _, key := range keys {
+		builtMessage = builtMessage + key + ": " + message.Headers[key] + CRLF
+	}
+
+	builtMessage = builtMessage + CRLF + message.Body
+
+	return builtMessage
+
 }
 
 func (s publishService) fetchAll(theJob *job, authorization string, idsCounted *uint64, idsCount *uint64, concepts chan<- concept, failures chan<- failure) {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/Financial-Times/message-queue-go-producer/producer"
+	"github.com/Shopify/sarama"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -47,7 +48,24 @@ func main() {
 		Desc:   "The hostname and port to the router of the cluster, so that we can access any of the transformers by going to vulcan. (e.g. http://ip-172-24-90-237.eu-west-1.compute.internal:8080)",
 		EnvVar: "CLUSTER_ROUTER_ADDRESS",
 	})
+	kafkaAddrs := app.String(cli.StringOpt{
+		Name:   "kafka_addrs",
+		Value:  "localhost:9092",
+		Desc:   "Kafka broker addresses",
+		EnvVar: "KAFKA_ADDRS"})
+
 	app.Action = func() {
+
+		p, err := sarama.NewSyncProducer([]string{*kafkaAddrs}, nil)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		defer func() {
+			if err := p.Close(); err != nil {
+				log.Fatalln(err)
+			}
+		}()
+
 		messageProducer := producer.NewMessageProducer(producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic})
 		clusterRouterAddress, err := url.Parse(*clusterRouterAddress)
 		if err != nil {
@@ -64,7 +82,7 @@ func main() {
 		}
 		var queueService queue = newQueueService(&messageProducer)
 		var httpCall caller = newHttpCaller(httpClient)
-		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries)
+		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries, &p)
 		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
 		pubHandler := newPublishHandler(&publishService)
 		assignHandlers(*port, &pubHandler, &healthHandler)

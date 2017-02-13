@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/Shopify/sarama"
 	"net/url"
 	"reflect"
 	"strings"
@@ -17,7 +18,8 @@ func TestGetJobIds_Empty(t *testing.T) {
 	}
 	var mockQueueSer queue = allOkQueue{}
 	var mockHttpSer caller = nilHttpService{}
-	pubService := newPublishService(url, &mockQueueSer, &mockHttpSer, 1)
+	var mockSyncProducer sarama.SyncProducer = MockSyncProducer{}
+	pubService := newPublishService(url, &mockQueueSer, &mockHttpSer, 1, &mockSyncProducer)
 	actualIds := pubService.getJobIds()
 	expectedIds := []string{}
 	if !reflect.DeepEqual(actualIds, expectedIds) {
@@ -52,7 +54,7 @@ func TestCreateJob(t *testing.T) {
 		createErr    error
 		definedIDs   []string
 		finalBaseUrl string
-		finalGtgUrl string
+		finalGtgUrl  string
 	}{
 		{
 			name:         "one",
@@ -104,18 +106,18 @@ func TestCreateJob(t *testing.T) {
 			createErr:    nil,
 			definedIDs:   []string{},
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
-			finalGtgUrl:     "http://localhost:8080/__special-reports-transformer/__gtg",
+			finalGtgUrl:  "http://localhost:8080/__special-reports-transformer/__gtg",
 		},
 		{
 			name:         "five",
-			clusterUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			baseUrl:     "/__topics-transformer/transformers/topics/",
-			gtgUrl:      "/__topics-transformer/__gtg",
-			conceptType: "topics",
-			ids:         []string{"1", "2"},
-			throttle:    1,
-			createErr:   nil,
-			definedIDs:  []string{"1", "2"},
+			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl:      "/__topics-transformer/transformers/topics/",
+			gtgUrl:       "/__topics-transformer/__gtg",
+			conceptType:  "topics",
+			ids:          []string{"1", "2"},
+			throttle:     1,
+			createErr:    nil,
+			definedIDs:   []string{"1", "2"},
 			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
 			finalGtgUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/__gtg",
 		},
@@ -127,8 +129,9 @@ func TestCreateJob(t *testing.T) {
 		}
 		var mockQueueSer queue = allOkQueue{}
 		var mockHttpSer caller = nilHttpService{}
-		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
-		actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseUrl, test.gtgUrl, test.throttle)
+		var mockSyncProducer sarama.SyncProducer = MockSyncProducer{}
+		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1, &mockSyncProducer)
+		actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseUrl, test.gtgUrl, test.throttle, false)
 		if err != nil {
 			if test.createErr != nil {
 				if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
@@ -209,7 +212,7 @@ func TestDeleteJob(t *testing.T) {
 		var mockHttpSer caller = nilHttpService{}
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
-			queueService:        &mockQueueSer,
+			queueService:         &mockQueueSer,
 			jobs:                 test.jobs,
 			httpService:          &mockHttpSer,
 			gtgRetries:           1,
@@ -341,8 +344,8 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"3": "3",
 			},
-			queueSer: allOkQueue{},
-			definedIDs: []string{"1","2","3"},
+			queueSer:     allOkQueue{},
+			definedIDs:   []string{"1", "2", "3"},
 			publishedIds: []string{"1", "3"},
 			failedIds:    []string{"2"},
 			status:       completed,
@@ -416,13 +419,13 @@ func TestRunJob(t *testing.T) {
 		var mockQueueSer queue = test.queueSer
 		var mockHttpSer caller = definedIdsHttpService{
 			definedToResolvedIs: test.definedIdsToResolvedIds,
-			reloadF:             func(string, string) error {
+			reloadF: func(string, string) error {
 				return test.reloadErr
 			},
-			gtgErr:              test.gtgErr,
-			idsFailure:          test.idsFailure,
-			countFailure:        test.countFailure,
-			staticIds:           test.staticIds,
+			gtgErr:       test.gtgErr,
+			idsFailure:   test.idsFailure,
+			countFailure: test.countFailure,
+			staticIds:    test.staticIds,
 		}
 		oneJob := &job{
 			JobID:       "job_1",
@@ -436,7 +439,7 @@ func TestRunJob(t *testing.T) {
 
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
-			queueService:        &mockQueueSer,
+			queueService:         &mockQueueSer,
 			jobs: map[string]*job{
 				"job_1": oneJob,
 			},
@@ -465,6 +468,22 @@ func TestRunJob(t *testing.T) {
 			t.Errorf("%v - bad status. got %s, want %s", test.name, oneJob.Status, test.status)
 		}
 	}
+}
+
+type MockSyncProducer struct {
+	returnError error
+}
+
+func (m MockSyncProducer) SendMessage(msg *sarama.ProducerMessage) (partition int32, offset int64, err error) {
+	return 1, 1, m.returnError
+}
+
+func (m MockSyncProducer) SendMessages(msgs []*sarama.ProducerMessage) error {
+	return m.returnError
+}
+
+func (m MockSyncProducer) Close() error {
+	return m.returnError
 }
 
 type allOkQueue struct{}
