@@ -164,7 +164,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 			}
 			err := (*p.queueService).sendMessage(resolvedID, theJob.ConceptType, theJob.JobID, c.payload)
 			if err != nil {
-				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
+				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v conceptType=%v %v", theJob.JobID, resolvedID, theJob.ConceptType, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
 			}
 		}

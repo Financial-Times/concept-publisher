@@ -2,6 +2,7 @@ package main
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 type job struct {
@@ -40,7 +41,5 @@ func (theJob *job) updateCount(count uint64) {
 }
 
 func (theJob *job) incrementProgress() {
-	theJob.Lock()
-	theJob.Progress++
-	theJob.Unlock()
+	atomic.AddUint64(&theJob.Progress, 1)
 }

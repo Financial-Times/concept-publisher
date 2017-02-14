@@ -428,13 +428,11 @@ func TestRunJob(t *testing.T) {
 			var mockQueueSer queue = test.queueSer
 			var mockHttpSer caller = definedIdsHttpService{
 				definedToResolvedIs: test.definedIdsToResolvedIds,
-				reloadF: func(string, string) error {
-					return test.reloadErr
-				},
-				gtgErr:       test.gtgErr,
-				idsFailure:   test.idsFailure,
-				countFailure: test.countFailure,
-				staticIds:    test.staticIds,
+				reloadF:             test.reloadErr,
+				gtgErr:              test.gtgErr,
+				idsFailure:          test.idsFailure,
+				countFailure:        test.countFailure,
+				staticIds:           test.staticIds,
 			}
 			oneJob := &job{
 				JobID:       "job_1",
@@ -556,7 +554,7 @@ func (h nilHttpService) fetchConcept(conceptID string, url string, authorization
 
 type definedIdsHttpService struct {
 	definedToResolvedIs map[string]string
-	reloadF             func(string, string) error
+	reloadF             error
 	gtgErr              error
 	idsFailure          *failure
 	staticIds           string
@@ -564,7 +562,7 @@ type definedIdsHttpService struct {
 }
 
 func (h definedIdsHttpService) reload(url string, authorization string) error {
-	return h.reloadF(url, authorization)
+	return h.reloadF
 }
 
 func (h definedIdsHttpService) checkGtg(url string) error {
