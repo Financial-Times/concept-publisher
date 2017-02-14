@@ -11,13 +11,13 @@ import (
 )
 
 func TestGetJobIds_Empty(t *testing.T) {
-	url, err := url.Parse("http://localhost:8080")
+	clusterUrl, err := url.Parse("http://localhost:8080")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var mockQueueSer queue = allOkQueue{}
 	var mockHttpSer caller = nilHttpService{}
-	pubService := newPublishService(url, &mockQueueSer, &mockHttpSer, 1)
+	pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
 	actualIds := pubService.getJobIds()
 	expectedIds := []string{}
 	if !reflect.DeepEqual(actualIds, expectedIds) {
@@ -28,7 +28,7 @@ func TestGetJobIds_Empty(t *testing.T) {
 func TestGetJobIds_1(t *testing.T) {
 	pubService := publishService{
 		jobs: map[string]*job{
-			"job_1": &job{
+			"job_1": {
 				JobID: "job_1",
 			},
 		},
@@ -52,7 +52,7 @@ func TestCreateJob(t *testing.T) {
 		createErr    error
 		definedIDs   []string
 		finalBaseUrl string
-		finalGtgUrl string
+		finalGtgUrl  string
 	}{
 		{
 			name:         "one",
@@ -104,18 +104,18 @@ func TestCreateJob(t *testing.T) {
 			createErr:    nil,
 			definedIDs:   []string{},
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
-			finalGtgUrl:     "http://localhost:8080/__special-reports-transformer/__gtg",
+			finalGtgUrl:  "http://localhost:8080/__special-reports-transformer/__gtg",
 		},
 		{
 			name:         "five",
-			clusterUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			baseUrl:     "/__topics-transformer/transformers/topics/",
-			gtgUrl:      "/__topics-transformer/__gtg",
-			conceptType: "topics",
-			ids:         []string{"1", "2"},
-			throttle:    1,
-			createErr:   nil,
-			definedIDs:  []string{"1", "2"},
+			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl:      "/__topics-transformer/transformers/topics/",
+			gtgUrl:       "/__topics-transformer/__gtg",
+			conceptType:  "topics",
+			ids:          []string{"1", "2"},
+			throttle:     1,
+			createErr:    nil,
+			definedIDs:   []string{"1", "2"},
 			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
 			finalGtgUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/__gtg",
 		},
@@ -166,7 +166,7 @@ func TestDeleteJob(t *testing.T) {
 		{
 			jobIDToDelete: "job_1",
 			jobs: map[string]*job{
-				"job_1": &job{
+				"job_1": {
 					JobID:       "job_1",
 					ConceptType: "special-reports",
 					IDs:         []string{},
@@ -181,7 +181,7 @@ func TestDeleteJob(t *testing.T) {
 		{
 			jobIDToDelete: "job_1",
 			jobs: map[string]*job{
-				"job_1": &job{
+				"job_1": {
 					JobID:       "job_1",
 					ConceptType: "special-reports",
 					IDs:         []string{},
@@ -209,7 +209,7 @@ func TestDeleteJob(t *testing.T) {
 		var mockHttpSer caller = nilHttpService{}
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
-			queueService:        &mockQueueSer,
+			queueService:         &mockQueueSer,
 			jobs:                 test.jobs,
 			httpService:          &mockHttpSer,
 			gtgRetries:           1,
@@ -341,8 +341,8 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"3": "3",
 			},
-			queueSer: allOkQueue{},
-			definedIDs: []string{"1","2","3"},
+			queueSer:     allOkQueue{},
+			definedIDs:   []string{"1", "2", "3"},
 			publishedIds: []string{"1", "3"},
 			failedIds:    []string{"2"},
 			status:       completed,
@@ -416,13 +416,13 @@ func TestRunJob(t *testing.T) {
 		var mockQueueSer queue = test.queueSer
 		var mockHttpSer caller = definedIdsHttpService{
 			definedToResolvedIs: test.definedIdsToResolvedIds,
-			reloadF:             func(string, string) error {
+			reloadF: func(string, string) error {
 				return test.reloadErr
 			},
-			gtgErr:              test.gtgErr,
-			idsFailure:          test.idsFailure,
-			countFailure:        test.countFailure,
-			staticIds:           test.staticIds,
+			gtgErr:       test.gtgErr,
+			idsFailure:   test.idsFailure,
+			countFailure: test.countFailure,
+			staticIds:    test.staticIds,
 		}
 		oneJob := &job{
 			JobID:       "job_1",
@@ -436,7 +436,7 @@ func TestRunJob(t *testing.T) {
 
 		pubService := publishService{
 			clusterRouterAddress: clusterUrl,
-			queueService:        &mockQueueSer,
+			queueService:         &mockQueueSer,
 			jobs: map[string]*job{
 				"job_1": oneJob,
 			},

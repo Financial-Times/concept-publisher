@@ -33,17 +33,17 @@ func TestHandlerCreateJob(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:           "missing fields",
-			httpBody:       `{"concept":"topics", "url":"/__topics-transformer/transformers/topics"}`,
-			createJobF:     func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
+			name:     "missing fields",
+			httpBody: `{"concept":"topics", "url":"/__topics-transformer/transformers/topics"}`,
+			createJobF: func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
 				return &job{JobID: "1"}, nil
 			},
 			expectedStatus: http.StatusCreated,
 		},
 		{
-			name:           "error at subsequent call",
-			httpBody:       `{"concept":"topics", "url":"/__topics-transformer/transformers/topics", "throttle": 100}`,
-			createJobF:     func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
+			name:     "error at subsequent call",
+			httpBody: `{"concept":"topics", "url":"/__topics-transformer/transformers/topics", "throttle": 100}`,
+			createJobF: func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
 				return nil, errors.New("error creating job because of something")
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -121,7 +121,7 @@ func TestHandlerStatus(t *testing.T) {
 
 func TestHandlerJobs(t *testing.T) {
 	tests := []struct {
-		name string
+		name           string
 		getJobIdsF     func() []string
 		expectedStatus int
 		expectedBody   string

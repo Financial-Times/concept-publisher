@@ -78,14 +78,14 @@ func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	var filteredJob *job
 	if _, ok := r.URL.Query()["full"]; !ok {
 		filteredJob = &job{
-			JobID: theJob.JobID,
+			JobID:       theJob.JobID,
 			ConceptType: theJob.ConceptType,
-			Count: theJob.Count,
-			Progress: theJob.Progress,
-			Status: theJob.Status,
-			Throttle: theJob.Throttle,
-			URL: theJob.URL,
-			GtgURL: theJob.GtgURL,
+			Count:       theJob.Count,
+			Progress:    theJob.Progress,
+			Status:      theJob.Status,
+			Throttle:    theJob.Throttle,
+			URL:         theJob.URL,
+			GtgURL:      theJob.GtgURL,
 		}
 	} else {
 		filteredJob = theJob

@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"reflect"
 	"sync"
-	"time"
 	"sync/atomic"
+	"time"
 )
 
 const (
