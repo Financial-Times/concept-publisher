@@ -162,8 +162,7 @@ func (p publishService) runJob(theJob *job, authorization string) {
 			if !reflect.DeepEqual(c.id, resolvedID) {
 				log.Infof("message=\"initial uuid doesn't match fetched resolved uuid\" originalUuid=%v resolvedUuid=%v jobId=%v", c.id, resolvedID, theJob.JobID)
 			}
-			tid := "tid_" + generateID()
-			err := (*p.queueService).sendMessage(resolvedID, theJob.ConceptType, tid, c.payload)
+			err := (*p.queueService).sendMessage(resolvedID, theJob.ConceptType, theJob.JobID, c.payload)
 			if err != nil {
 				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v %v", theJob.JobID, c.id, err)
 				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
