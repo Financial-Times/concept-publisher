@@ -33,7 +33,7 @@ func (h httpCaller) reload(url string, authorization string) error {
 		return fmt.Errorf("message=\"Could not connect to reload concepts\" url=\"%v\" err=\"%s\"", url, err)
 	}
 	defer closeNice(resp)
-	if resp.StatusCode / 100 != 2 {
+	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("message=\"Incorrect status when reloading concepts\" status=%d url=\"%s\"", resp.StatusCode, url)
 	}
 	return nil

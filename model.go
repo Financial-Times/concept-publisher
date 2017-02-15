@@ -2,20 +2,21 @@ package main
 
 import (
 	"sync"
+	"sync/atomic"
 )
 
 type job struct {
 	sync.RWMutex
-	JobID       string            `json:"jobID"`
-	ConceptType string            `json:"conceptType"`
-	IDs         []string          `json:"IDToTID,omitempty"`
-	URL         string            `json:"url"`
-	GtgURL      string            `json:"gtgUrl"`
-	Throttle    int               `json:"throttle"`
-	Count       uint64            `json:"count"`
-	Progress    uint64            `json:"progress"`
-	Status      string            `json:"status"`
-	FailedIDs   []string          `json:"failedIDs,omitempty"`
+	JobID       string   `json:"jobID"`
+	ConceptType string   `json:"conceptType"`
+	IDs         []string `json:"IDToTID,omitempty"`
+	URL         string   `json:"url"`
+	GtgURL      string   `json:"gtgUrl"`
+	Throttle    int      `json:"throttle"`
+	Count       uint64   `json:"count"`
+	Progress    uint64   `json:"progress"`
+	Status      string   `json:"status"`
+	FailedIDs   []string `json:"failedIDs,omitempty"`
 }
 
 type createJobRequest struct {
@@ -40,7 +41,5 @@ func (theJob *job) updateCount(count uint64) {
 }
 
 func (theJob *job) incrementProgress() {
-	theJob.Lock()
-	theJob.Progress++
-	theJob.Unlock()
+	atomic.AddUint64(&theJob.Progress, 1)
 }

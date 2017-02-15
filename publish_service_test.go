@@ -3,21 +3,23 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"net/url"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 func TestGetJobIds_Empty(t *testing.T) {
-	url, err := url.Parse("http://localhost:8080")
+	clusterUrl, err := url.Parse("http://localhost:8080")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var mockQueueSer queue = allOkQueue{}
+	var mockQueueSer queue = mockQueue{}
 	var mockHttpSer caller = nilHttpService{}
-	pubService := newPublishService(url, &mockQueueSer, &mockHttpSer, 1)
+	pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
 	actualIds := pubService.getJobIds()
 	expectedIds := []string{}
 	if !reflect.DeepEqual(actualIds, expectedIds) {
@@ -28,7 +30,7 @@ func TestGetJobIds_Empty(t *testing.T) {
 func TestGetJobIds_1(t *testing.T) {
 	pubService := publishService{
 		jobs: map[string]*job{
-			"job_1": &job{
+			"job_1": {
 				JobID: "job_1",
 			},
 		},
@@ -52,7 +54,7 @@ func TestCreateJob(t *testing.T) {
 		createErr    error
 		definedIDs   []string
 		finalBaseUrl string
-		finalGtgUrl string
+		finalGtgUrl  string
 	}{
 		{
 			name:         "one",
@@ -104,69 +106,73 @@ func TestCreateJob(t *testing.T) {
 			createErr:    nil,
 			definedIDs:   []string{},
 			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
-			finalGtgUrl:     "http://localhost:8080/__special-reports-transformer/__gtg",
+			finalGtgUrl:  "http://localhost:8080/__special-reports-transformer/__gtg",
 		},
 		{
 			name:         "five",
-			clusterUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			baseUrl:     "/__topics-transformer/transformers/topics/",
-			gtgUrl:      "/__topics-transformer/__gtg",
-			conceptType: "topics",
-			ids:         []string{"1", "2"},
-			throttle:    1,
-			createErr:   nil,
-			definedIDs:  []string{"1", "2"},
+			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
+			baseUrl:      "/__topics-transformer/transformers/topics/",
+			gtgUrl:       "/__topics-transformer/__gtg",
+			conceptType:  "topics",
+			ids:          []string{"1", "2"},
+			throttle:     1,
+			createErr:    nil,
+			definedIDs:   []string{"1", "2"},
 			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
 			finalGtgUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/__gtg",
 		},
 	}
 	for _, test := range tests {
-		clusterUrl, err := url.Parse(test.clusterUrl)
-		if err != nil {
-			t.Error(err)
-		}
-		var mockQueueSer queue = allOkQueue{}
-		var mockHttpSer caller = nilHttpService{}
-		pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
-		actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseUrl, test.gtgUrl, test.throttle)
-		if err != nil {
-			if test.createErr != nil {
-				if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
-					t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.createErr)
-				}
-				continue
+		t.Run(test.name, func(t *testing.T) {
+			clusterUrl, err := url.Parse(test.clusterUrl)
+			if err != nil {
+				t.Error(err)
 			}
-			t.Errorf("unexpected error: %v", err)
-			return
-		}
-		expectedJob := job{
-			JobID:       actualJob.JobID,
-			ConceptType: test.conceptType,
-			IDs:         test.definedIDs,
-			URL:         test.finalBaseUrl,
-			GtgURL:      test.finalGtgUrl,
-			Throttle:    test.throttle,
-			Progress:    0,
-			Status:      defined,
-			FailedIDs:   []string{},
-		}
-		if !reflect.DeepEqual(*actualJob, expectedJob) {
-			t.Errorf("test %v - wrong job. diff got vs want:\n%v\n%v", test.name, *actualJob, expectedJob)
-		}
+			var mockQueueSer queue = mockQueue{}
+			var mockHttpSer caller = nilHttpService{}
+			pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
+			actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseUrl, test.gtgUrl, test.throttle)
+			if err != nil {
+				if test.createErr != nil {
+					if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
+						t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.createErr)
+					}
+					return
+				}
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+			expectedJob := job{
+				JobID:       actualJob.JobID,
+				ConceptType: test.conceptType,
+				IDs:         test.definedIDs,
+				URL:         test.finalBaseUrl,
+				GtgURL:      test.finalGtgUrl,
+				Throttle:    test.throttle,
+				Progress:    0,
+				Status:      defined,
+				FailedIDs:   []string{},
+			}
+			if !reflect.DeepEqual(*actualJob, expectedJob) {
+				t.Errorf("test %v - wrong job. diff got vs want:\n%v\n%v", test.name, *actualJob, expectedJob)
+			}
+		})
 	}
 }
 
 func TestDeleteJob(t *testing.T) {
 	tests := []struct {
+		name          string
 		jobIDToDelete string
 		jobs          map[string]*job
 		nJobsAfter    int
 		deleteErr     error
 	}{
 		{
+			name:          "DeleteCompleted",
 			jobIDToDelete: "job_1",
 			jobs: map[string]*job{
-				"job_1": &job{
+				"job_1": {
 					JobID:       "job_1",
 					ConceptType: "special-reports",
 					IDs:         []string{},
@@ -179,9 +185,10 @@ func TestDeleteJob(t *testing.T) {
 			deleteErr:  nil,
 		},
 		{
+			name:          "DeleteInProgress",
 			jobIDToDelete: "job_1",
 			jobs: map[string]*job{
-				"job_1": &job{
+				"job_1": {
 					JobID:       "job_1",
 					ConceptType: "special-reports",
 					IDs:         []string{},
@@ -194,6 +201,7 @@ func TestDeleteJob(t *testing.T) {
 			deleteErr:  errors.New(`message="Job is in progress, locked."`),
 		},
 		{
+			name:          "NotFound",
 			jobIDToDelete: "job_99",
 			jobs:          map[string]*job{},
 			nJobsAfter:    0,
@@ -201,35 +209,37 @@ func TestDeleteJob(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		clusterUrl, err := url.Parse("http://localhost:8080/")
-		if err != nil {
-			t.Fatal(err)
-		}
-		var mockQueueSer queue = allOkQueue{}
-		var mockHttpSer caller = nilHttpService{}
-		pubService := publishService{
-			clusterRouterAddress: clusterUrl,
-			queueService:        &mockQueueSer,
-			jobs:                 test.jobs,
-			httpService:          &mockHttpSer,
-			gtgRetries:           1,
-		}
-
-		err = pubService.deleteJob(test.jobIDToDelete)
-
-		if err != nil {
-			if test.deleteErr != nil {
-				if !strings.HasPrefix(err.Error(), test.deleteErr.Error()) {
-					t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.deleteErr)
-				}
-				continue
+		t.Run(test.name, func(t *testing.T) {
+			clusterUrl, err := url.Parse("http://localhost:8080/")
+			if err != nil {
+				t.Fatal(err)
 			}
-			t.Fatalf("unexpected error: %v", err)
-			return
-		}
-		if len(pubService.jobs) != test.nJobsAfter {
-			t.Fatalf("wrong number of jobs. diff got vs want:\n%d\n%d", len(pubService.jobs), test.nJobsAfter)
-		}
+			var mockQueueSer queue = mockQueue{}
+			var mockHttpSer caller = nilHttpService{}
+			pubService := publishService{
+				clusterRouterAddress: clusterUrl,
+				queueService:         &mockQueueSer,
+				jobs:                 test.jobs,
+				httpService:          &mockHttpSer,
+				gtgRetries:           1,
+			}
+
+			err = pubService.deleteJob(test.jobIDToDelete)
+
+			if err != nil {
+				if test.deleteErr != nil {
+					if !strings.HasPrefix(err.Error(), test.deleteErr.Error()) {
+						t.Fatalf("unexpected error. diff got vs want:\n%v\n%v", err, test.deleteErr)
+					}
+					return
+				}
+				t.Fatalf("unexpected error: %v", err)
+				return
+			}
+			if len(pubService.jobs) != test.nJobsAfter {
+				t.Fatalf("wrong number of jobs. diff got vs want:\n%d\n%d", len(pubService.jobs), test.nJobsAfter)
+			}
+		})
 	}
 }
 
@@ -244,7 +254,7 @@ func TestRunJob(t *testing.T) {
 		idsFailure              *failure
 		staticIds               string
 		countFailure            *failure
-		queueSer                queue
+		queueSer                mockQueue
 		definedIDs              []string
 		publishedIds            []string
 		failedIds               []string
@@ -257,7 +267,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer:     allOkQueue{},
+			queueSer:     mockQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -271,7 +281,7 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			reloadErr:    errors.New("Can't reload"),
-			queueSer:     allOkQueue{},
+			queueSer:     mockQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -285,7 +295,7 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			gtgErr:       errors.New("Timed out"),
-			queueSer:     allOkQueue{},
+			queueSer:     mockQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{},
 			failedIds:    []string{},
@@ -298,7 +308,7 @@ func TestRunJob(t *testing.T) {
 				"1": "X1",
 				"2": "X2",
 			},
-			queueSer:     allOkQueue{},
+			queueSer:     mockQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{"X1", "X2"},
 			failedIds:    []string{},
@@ -315,7 +325,7 @@ func TestRunJob(t *testing.T) {
 				conceptID: "",
 				error:     errors.New("Some error in ids."),
 			},
-			queueSer:     allOkQueue{},
+			queueSer:     mockQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{},
 			failedIds:    []string{},
@@ -328,7 +338,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "\"2",
 			},
-			queueSer:     allOkQueue{},
+			queueSer:     mockQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{"1"},
 			failedIds:    []string{"2"},
@@ -341,8 +351,8 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"3": "3",
 			},
-			queueSer: allOkQueue{},
-			definedIDs: []string{"1","2","3"},
+			queueSer:     mockQueue{},
+			definedIDs:   []string{"1", "2", "3"},
 			publishedIds: []string{"1", "3"},
 			failedIds:    []string{"2"},
 			status:       completed,
@@ -354,7 +364,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer:     errorQueue{},
+			queueSer:     mockQueue{returnError: errors.New("Couldn't send because test.")},
 			definedIDs:   []string{},
 			publishedIds: []string{},
 			failedIds:    []string{"1", "2"},
@@ -371,7 +381,7 @@ func TestRunJob(t *testing.T) {
 				conceptID: "",
 				error:     errors.New("Some error in count."),
 			},
-			queueSer:     allOkQueue{},
+			queueSer:     mockQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -387,7 +397,7 @@ func TestRunJob(t *testing.T) {
 			staticIds: `{"id":"1"}
 			//
 			{"xx":"2"}`,
-			queueSer:     allOkQueue{},
+			queueSer:     mockQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{"1"},
 			failedIds:    []string{""},
@@ -401,7 +411,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer:     allOkQueue{},
+			queueSer:     mockQueue{},
 			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -409,74 +419,92 @@ func TestRunJob(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		clusterUrl, err := url.Parse("http://ip-172-24-158-162.eu-west-1.compute.internal:8080")
-		if err != nil {
-			t.Fatal(err)
-		}
-		var mockQueueSer queue = test.queueSer
-		var mockHttpSer caller = definedIdsHttpService{
-			definedToResolvedIs: test.definedIdsToResolvedIds,
-			reloadF:             func(string, string) error {
-				return test.reloadErr
-			},
-			gtgErr:              test.gtgErr,
-			idsFailure:          test.idsFailure,
-			countFailure:        test.countFailure,
-			staticIds:           test.staticIds,
-		}
-		oneJob := &job{
-			JobID:       "job_1",
-			URL:         test.baseURL,
-			ConceptType: "topics",
-			IDs:         test.definedIDs,
-			Throttle:    test.throttle,
-			Status:      defined,
-			FailedIDs:   []string{},
-		}
+		t.Run(test.name, func(t *testing.T) {
 
-		pubService := publishService{
-			clusterRouterAddress: clusterUrl,
-			queueService:        &mockQueueSer,
-			jobs: map[string]*job{
-				"job_1": oneJob,
-			},
-			httpService: &mockHttpSer,
-			gtgRetries:  1,
-		}
-		pubService.runJob(oneJob, "Basic 1234")
-		if test.throttle > 0 {
-			time.Sleep(time.Millisecond * (500 + time.Duration(int(1000*float64(len(test.publishedIds)+len(test.failedIds))/float64(test.throttle)))))
-		}
-		var found bool
-		for _, failedId := range test.failedIds {
-			found = false
-			for _, actualFailedId := range oneJob.FailedIDs {
-				if reflect.DeepEqual(failedId, actualFailedId) {
-					found = true
-					break
+			clusterUrl, err := url.Parse("http://ip-172-24-158-162.eu-west-1.compute.internal:8080")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var mockQueueSer queue = test.queueSer
+			var mockHttpSer caller = definedIdsHttpService{
+				definedToResolvedIs: test.definedIdsToResolvedIds,
+				reloadF:             test.reloadErr,
+				gtgErr:              test.gtgErr,
+				idsFailure:          test.idsFailure,
+				countFailure:        test.countFailure,
+				staticIds:           test.staticIds,
+			}
+			oneJob := &job{
+				JobID:       "job_1",
+				URL:         test.baseURL,
+				ConceptType: "topics",
+				IDs:         test.definedIDs,
+				Throttle:    test.throttle,
+				Status:      defined,
+				FailedIDs:   []string{},
+			}
+
+			pubService := publishService{
+				clusterRouterAddress: clusterUrl,
+				queueService:         &mockQueueSer,
+				jobs: map[string]*job{
+					"job_1": oneJob,
+				},
+				httpService: &mockHttpSer,
+				gtgRetries:  1,
+			}
+			pubService.runJob(oneJob, "Basic 1234")
+			if test.throttle > 0 {
+				time.Sleep(time.Millisecond * (500 + time.Duration(int(1000*float64(len(test.publishedIds)+len(test.failedIds))/float64(test.throttle)))))
+			}
+			var found bool
+			for _, failedId := range test.failedIds {
+				found = false
+				for _, actualFailedId := range oneJob.FailedIDs {
+					if reflect.DeepEqual(failedId, actualFailedId) {
+						found = true
+						break
+					}
+
 				}
+				if !found {
+					t.Errorf("%v - Expected failed id %v couldn't be found in actual failures:", test.name, failedId)
+				}
+			}
+			if oneJob.Status != test.status {
+				t.Errorf("%v - bad status. got %s, want %s", test.name, oneJob.Status, test.status)
+			}
 
+			for _, msg := range test.queueSer.getMessages() {
+				tid, ok := msg["tid"]
+				assert.True(t, ok)
+				assert.Equal(t, oneJob.JobID, tid)
 			}
-			if !found {
-				t.Errorf("%v - Expected failed id %v couldn't be found in actual failures:", test.name, failedId)
-			}
-		}
-		if oneJob.Status != test.status {
-			t.Errorf("%v - bad status. got %s, want %s", test.name, oneJob.Status, test.status)
-		}
+		})
 	}
 }
 
-type allOkQueue struct{}
-
-func (q allOkQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
-	return nil
+type mockQueue struct {
+	sync.Mutex
+	messages    []map[string]string
+	returnError error
 }
 
-type errorQueue struct{}
-
-func (q errorQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
-	return errors.New("Couldn't send because test.")
+func (q mockQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
+	q.Lock()
+	defer q.Unlock()
+	q.messages = append(q.messages, map[string]string{
+		"id":          id,
+		"conceptType": conceptType,
+		"tid":         tid,
+		"payload":     string(payload[:]),
+	})
+	return q.returnError
+}
+func (q mockQueue) getMessages() []map[string]string {
+	q.Lock()
+	defer q.Unlock()
+	return q.messages
 }
 
 type mockedHttpService struct {
@@ -526,7 +554,7 @@ func (h nilHttpService) fetchConcept(conceptID string, url string, authorization
 
 type definedIdsHttpService struct {
 	definedToResolvedIs map[string]string
-	reloadF             func(string, string) error
+	reloadF             error
 	gtgErr              error
 	idsFailure          *failure
 	staticIds           string
@@ -534,7 +562,7 @@ type definedIdsHttpService struct {
 }
 
 func (h definedIdsHttpService) reload(url string, authorization string) error {
-	return h.reloadF(url, authorization)
+	return h.reloadF
 }
 
 func (h definedIdsHttpService) checkGtg(url string) error {

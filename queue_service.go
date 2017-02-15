@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/Financial-Times/message-queue-go-producer/producer"
+	log "github.com/Sirupsen/logrus"
 	"time"
 )
 
@@ -17,12 +18,13 @@ type queue interface {
 	sendMessage(id string, conceptType string, tid string, payload []byte) error
 }
 
-func (q kafkaQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
+func (q kafkaQueue) sendMessage(uuid string, conceptType string, tid string, payload []byte) error {
+	log.Infof("Sending concept=[%s] uuid=[%s] tid=[%v]", uuid, conceptType, tid)
 	message := producer.Message{
-		Headers: buildHeader(id, conceptType, tid),
+		Headers: buildHeader(uuid, conceptType, tid),
 		Body:    string(payload),
 	}
-	return (*q.producer).SendMessage(id, message)
+	return (*q.producer).SendMessage(uuid, message)
 }
 
 func buildHeader(uuid string, conceptType string, tid string) map[string]string {
