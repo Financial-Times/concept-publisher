@@ -55,7 +55,7 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 	type shortJob struct {
 		JobID string `json:"jobID"`
 	}
-	sj := shortJob{JobID: theJob.JobID}
+	sj := shortJob{JobID: theJob.jobID}
 	enc := json.NewEncoder(w)
 	err = enc.Encode(sj)
 	if err != nil {
@@ -77,18 +77,9 @@ func (h publishHandler) status(w http.ResponseWriter, r *http.Request) {
 	}
 	var filteredJob *job
 	if _, ok := r.URL.Query()["full"]; !ok {
-		filteredJob = &job{
-			JobID:       theJob.JobID,
-			ConceptType: theJob.ConceptType,
-			Count:       theJob.Count,
-			Progress:    theJob.Progress,
-			Status:      theJob.Status,
-			Throttle:    theJob.Throttle,
-			URL:         theJob.URL,
-			GtgURL:      theJob.GtgURL,
-		}
+		filteredJob = theJob.getJobFiltered()
 	} else {
-		filteredJob = theJob
+		filteredJob = theJob.getJob()
 	}
 	w.Header().Add("Content-Type", "application/json")
 	enc := json.NewEncoder(w)

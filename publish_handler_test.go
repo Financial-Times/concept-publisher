@@ -14,7 +14,7 @@ func TestHandlerCreateJob(t *testing.T) {
 	tests := []struct {
 		name           string
 		httpBody       string
-		createJobF     func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error)
+		createJobF     func(ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error)
 		expectedStatus int
 	}{
 		{
@@ -35,15 +35,15 @@ func TestHandlerCreateJob(t *testing.T) {
 		{
 			name:     "missing fields",
 			httpBody: `{"concept":"topics", "url":"/__topics-transformer/transformers/topics"}`,
-			createJobF: func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
-				return &job{JobID: "1"}, nil
+			createJobF: func(ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
+				return &internalJob{jobID: "1"}, nil
 			},
 			expectedStatus: http.StatusCreated,
 		},
 		{
 			name:     "error at subsequent call",
 			httpBody: `{"concept":"topics", "url":"/__topics-transformer/transformers/topics", "throttle": 100}`,
-			createJobF: func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
+			createJobF: func(ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
 				return nil, errors.New("error creating job because of something")
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -57,7 +57,7 @@ func TestHandlerCreateJob(t *testing.T) {
 		}
 		var pubService publisher = mockedPublisher{
 			createJobF: test.createJobF,
-			runJobF:    func(theJob *job, authorization string) {},
+			runJobF:    func(theJob *internalJob, authorization string) {},
 		}
 		pubHandler := newPublishHandler(&pubService)
 		recorder := httptest.NewRecorder()
@@ -79,21 +79,21 @@ func TestHandlerStatus(t *testing.T) {
 	tests := []struct {
 		name           string
 		jobID          string
-		getJobF        func(string) (*job, error)
+		getJobF        func(string) (*internalJob, error)
 		expectedStatus int
 	}{
 		{
 			name:  "normal case",
 			jobID: "1",
-			getJobF: func(jobID string) (*job, error) {
-				return &job{JobID: "1"}, nil
+			getJobF: func(jobID string) (*internalJob, error) {
+				return &internalJob{jobID: "1"}, nil
 			},
 			expectedStatus: http.StatusOK,
 		},
 		{
 			name:  "not found",
 			jobID: "1",
-			getJobF: func(jobID string) (*job, error) {
+			getJobF: func(jobID string) (*internalJob, error) {
 				return nil, newNotFoundError("1")
 			},
 			expectedStatus: http.StatusNotFound,
@@ -212,18 +212,18 @@ func TestHandlerDeleteJob(t *testing.T) {
 }
 
 type mockedPublisher struct {
-	createJobF func(ids []string, baseURL string, gtgURL string, throttle int) (*job, error)
-	getJobF    func(jobID string) (*job, error)
+	createJobF func(ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error)
+	getJobF    func(jobID string) (*internalJob, error)
 	getJobIdsF func() []string
-	runJobF    func(theJob *job, authorization string)
+	runJobF    func(theJob *internalJob, authorization string)
 	deleteJobF func(jobID string) error
 }
 
-func (p mockedPublisher) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
+func (p mockedPublisher) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
 	return p.createJobF(ids, baseURL, baseURL+"__gtg", throttle)
 }
 
-func (p mockedPublisher) getJob(jobID string) (*job, error) {
+func (p mockedPublisher) getJob(jobID string) (*internalJob, error) {
 	return p.getJobF(jobID)
 }
 
@@ -231,7 +231,7 @@ func (p mockedPublisher) getJobIds() []string {
 	return p.getJobIdsF()
 }
 
-func (p mockedPublisher) runJob(theJob *job, authorization string) {
+func (p mockedPublisher) runJob(theJob *internalJob, authorization string) {
 	p.runJobF(theJob, authorization)
 }
 

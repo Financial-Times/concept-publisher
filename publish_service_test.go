@@ -7,9 +7,12 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
+)
+
+const (
+	expectedMsgId = "expected-msg-id"
 )
 
 func TestGetJobIds_Empty(t *testing.T) {
@@ -17,7 +20,7 @@ func TestGetJobIds_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var mockQueueSer queue = mockQueue{}
+	var mockQueueSer queue = newMockQueue()
 	var mockHttpSer caller = nilHttpService{}
 	pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
 	actualIds := pubService.getJobIds()
@@ -29,9 +32,9 @@ func TestGetJobIds_Empty(t *testing.T) {
 
 func TestGetJobIds_1(t *testing.T) {
 	pubService := publishService{
-		jobs: map[string]*job{
+		jobs: map[string]*internalJob{
 			"job_1": {
-				JobID: "job_1",
+				jobID: "job_1",
 			},
 		},
 	}
@@ -128,7 +131,7 @@ func TestCreateJob(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			var mockQueueSer queue = mockQueue{}
+			var mockQueueSer queue = newMockQueue()
 			var mockHttpSer caller = nilHttpService{}
 			pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
 			actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseUrl, test.gtgUrl, test.throttle)
@@ -143,7 +146,7 @@ func TestCreateJob(t *testing.T) {
 				return
 			}
 			expectedJob := job{
-				JobID:       actualJob.JobID,
+				JobID:       actualJob.jobID,
 				ConceptType: test.conceptType,
 				IDs:         test.definedIDs,
 				URL:         test.finalBaseUrl,
@@ -153,7 +156,7 @@ func TestCreateJob(t *testing.T) {
 				Status:      defined,
 				FailedIDs:   []string{},
 			}
-			if !reflect.DeepEqual(*actualJob, expectedJob) {
+			if !reflect.DeepEqual(*actualJob.getJob(), expectedJob) {
 				t.Errorf("test %v - wrong job. diff got vs want:\n%v\n%v", test.name, *actualJob, expectedJob)
 			}
 		})
@@ -164,21 +167,21 @@ func TestDeleteJob(t *testing.T) {
 	tests := []struct {
 		name          string
 		jobIDToDelete string
-		jobs          map[string]*job
+		jobs          map[string]*internalJob
 		nJobsAfter    int
 		deleteErr     error
 	}{
 		{
 			name:          "DeleteCompleted",
 			jobIDToDelete: "job_1",
-			jobs: map[string]*job{
+			jobs: map[string]*internalJob{
 				"job_1": {
-					JobID:       "job_1",
-					ConceptType: "special-reports",
-					IDs:         []string{},
-					Throttle:    1,
-					Status:      completed,
-					FailedIDs:   []string{},
+					jobID:       "job_1",
+					conceptType: "special-reports",
+					ids:         []string{},
+					throttle:    1,
+					status:      completed,
+					failedIDs:   []string{},
 				},
 			},
 			nJobsAfter: 0,
@@ -187,14 +190,14 @@ func TestDeleteJob(t *testing.T) {
 		{
 			name:          "DeleteInProgress",
 			jobIDToDelete: "job_1",
-			jobs: map[string]*job{
+			jobs: map[string]*internalJob{
 				"job_1": {
-					JobID:       "job_1",
-					ConceptType: "special-reports",
-					IDs:         []string{},
-					Throttle:    1,
-					Status:      inProgress,
-					FailedIDs:   []string{},
+					jobID:       "job_1",
+					conceptType: "special-reports",
+					ids:         []string{},
+					throttle:    1,
+					status:      inProgress,
+					failedIDs:   []string{},
 				},
 			},
 			nJobsAfter: 0,
@@ -203,7 +206,7 @@ func TestDeleteJob(t *testing.T) {
 		{
 			name:          "NotFound",
 			jobIDToDelete: "job_99",
-			jobs:          map[string]*job{},
+			jobs:          map[string]*internalJob{},
 			nJobsAfter:    0,
 			deleteErr:     errors.New(`message="Job not found"`),
 		},
@@ -214,7 +217,7 @@ func TestDeleteJob(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var mockQueueSer queue = mockQueue{}
+			var mockQueueSer queue = newMockQueue()
 			var mockHttpSer caller = nilHttpService{}
 			pubService := publishService{
 				clusterRouterAddress: clusterUrl,
@@ -267,7 +270,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -281,7 +284,7 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			reloadErr:    errors.New("Can't reload"),
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -295,7 +298,7 @@ func TestRunJob(t *testing.T) {
 				"2": "2",
 			},
 			gtgErr:       errors.New("Timed out"),
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{},
 			publishedIds: []string{},
 			failedIds:    []string{},
@@ -308,7 +311,7 @@ func TestRunJob(t *testing.T) {
 				"1": "X1",
 				"2": "X2",
 			},
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{},
 			publishedIds: []string{"X1", "X2"},
 			failedIds:    []string{},
@@ -325,7 +328,7 @@ func TestRunJob(t *testing.T) {
 				conceptID: "",
 				error:     errors.New("Some error in ids."),
 			},
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{},
 			publishedIds: []string{},
 			failedIds:    []string{},
@@ -338,7 +341,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "\"2",
 			},
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{},
 			publishedIds: []string{"1"},
 			failedIds:    []string{"2"},
@@ -351,7 +354,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"3": "3",
 			},
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{"1", "2", "3"},
 			publishedIds: []string{"1", "3"},
 			failedIds:    []string{"2"},
@@ -364,7 +367,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer:     mockQueue{returnError: errors.New("Couldn't send because test.")},
+			queueSer:     newMockQueueWithError(errors.New("Couldn't send because test.")),
 			definedIDs:   []string{},
 			publishedIds: []string{},
 			failedIds:    []string{"1", "2"},
@@ -381,7 +384,7 @@ func TestRunJob(t *testing.T) {
 				conceptID: "",
 				error:     errors.New("Some error in count."),
 			},
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -397,7 +400,7 @@ func TestRunJob(t *testing.T) {
 			staticIds: `{"id":"1"}
 			//
 			{"xx":"2"}`,
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{},
 			publishedIds: []string{"1"},
 			failedIds:    []string{""},
@@ -411,7 +414,7 @@ func TestRunJob(t *testing.T) {
 				"1": "1",
 				"2": "2",
 			},
-			queueSer:     mockQueue{},
+			queueSer:     newMockQueue(),
 			definedIDs:   []string{},
 			publishedIds: []string{"1", "2"},
 			failedIds:    []string{},
@@ -434,20 +437,20 @@ func TestRunJob(t *testing.T) {
 				countFailure:        test.countFailure,
 				staticIds:           test.staticIds,
 			}
-			oneJob := &job{
-				JobID:       "job_1",
-				URL:         test.baseURL,
-				ConceptType: "topics",
-				IDs:         test.definedIDs,
-				Throttle:    test.throttle,
-				Status:      defined,
-				FailedIDs:   []string{},
+			oneJob := &internalJob{
+				jobID:       "job_1",
+				url:         test.baseURL,
+				conceptType: "topics",
+				ids:         test.definedIDs,
+				throttle:    test.throttle,
+				status:      defined,
+				failedIDs:   []string{},
 			}
 
 			pubService := publishService{
 				clusterRouterAddress: clusterUrl,
 				queueService:         &mockQueueSer,
-				jobs: map[string]*job{
+				jobs: map[string]*internalJob{
 					"job_1": oneJob,
 				},
 				httpService: &mockHttpSer,
@@ -455,12 +458,22 @@ func TestRunJob(t *testing.T) {
 			}
 			pubService.runJob(oneJob, "Basic 1234")
 			if test.throttle > 0 {
-				time.Sleep(time.Millisecond * (500 + time.Duration(int(1000*float64(len(test.publishedIds)+len(test.failedIds))/float64(test.throttle)))))
+				d := time.Millisecond * (500 + time.Duration(int(1000*float64(len(test.publishedIds)+len(test.failedIds))/float64(test.throttle))))
+				e := time.Now().Add(d)
+				for {
+					if time.Now().After(e) {
+						break
+					}
+					if oneJob.getStatus() == test.status {
+						break
+					}
+				}
 			}
+
 			var found bool
 			for _, failedId := range test.failedIds {
 				found = false
-				for _, actualFailedId := range oneJob.FailedIDs {
+				for _, actualFailedId := range oneJob.getFailedIDs() {
 					if reflect.DeepEqual(failedId, actualFailedId) {
 						found = true
 						break
@@ -471,40 +484,58 @@ func TestRunJob(t *testing.T) {
 					t.Errorf("%v - Expected failed id %v couldn't be found in actual failures:", test.name, failedId)
 				}
 			}
-			if oneJob.Status != test.status {
-				t.Errorf("%v - bad status. got %s, want %s", test.name, oneJob.Status, test.status)
+			if oneJob.getStatus() != test.status {
+				t.Errorf("%v - bad status. got %s, want %s", test.name, oneJob.getStatus(), test.status)
 			}
 
 			for _, msg := range test.queueSer.getMessages() {
 				tid, ok := msg["tid"]
 				assert.True(t, ok)
-				assert.Equal(t, oneJob.JobID, tid)
+				assert.Equal(t, oneJob.jobID, tid)
+				assert.Equal(t, expectedMsgId, msg["id"])
 			}
 		})
 	}
 }
 
 type mockQueue struct {
-	sync.Mutex
-	messages    []map[string]string
+	messages    chan map[string]string
 	returnError error
+	msgId       string
 }
 
-func (q mockQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
-	q.Lock()
-	defer q.Unlock()
-	q.messages = append(q.messages, map[string]string{
-		"id":          id,
+func (q mockQueue) sendMessage(uuid string, conceptType string, tid string, payload []byte) error {
+	q.messages <- map[string]string{
+		"id":          q.msgId,
 		"conceptType": conceptType,
 		"tid":         tid,
 		"payload":     string(payload[:]),
-	})
+		"uuid":        uuid,
+	}
 	return q.returnError
 }
 func (q mockQueue) getMessages() []map[string]string {
-	q.Lock()
-	defer q.Unlock()
-	return q.messages
+	close(q.messages)
+	var qs []map[string]string
+	for m := range q.messages {
+		qs = append(qs, m)
+	}
+	return qs
+}
+
+func newMockQueue() mockQueue {
+	return mockQueue{
+		msgId:    expectedMsgId,
+		messages: make(chan map[string]string, 100),
+	}
+}
+
+func newMockQueueWithError(err error) mockQueue {
+	return mockQueue{
+		messages:    make(chan map[string]string, 100),
+		returnError: err,
+		msgId:       expectedMsgId,
+	}
 }
 
 type mockedHttpService struct {
