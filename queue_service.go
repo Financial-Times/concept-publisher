@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
+	"github.com/satori/go.uuid"
 	"time"
 )
 
@@ -15,21 +16,22 @@ func newQueueService(producer *producer.MessageProducer) kafkaQueue {
 }
 
 type queue interface {
-	sendMessage(id string, conceptType string, tid string, payload []byte) error
+	sendMessage(conceptType string, tid string, payload []byte) error
 }
 
-func (q kafkaQueue) sendMessage(uuid string, conceptType string, tid string, payload []byte) error {
-	log.Infof("Sending concept=[%s] uuid=[%s] tid=[%v]", uuid, conceptType, tid)
+func (q kafkaQueue) sendMessage(conceptType string, tid string, payload []byte) error {
+	msgID := uuid.NewV4().String()
+	log.Infof("Sending concept=[%s] uuid=[%s] tid=[%v]", msgID, conceptType, tid)
 	message := producer.Message{
-		Headers: buildHeader(uuid, conceptType, tid),
+		Headers: buildHeader(msgID, conceptType, tid),
 		Body:    string(payload),
 	}
-	return (*q.producer).SendMessage(uuid, message)
+	return (*q.producer).SendMessage(msgID, message)
 }
 
-func buildHeader(uuid string, conceptType string, tid string) map[string]string {
+func buildHeader(msgID string, conceptType string, tid string) map[string]string {
 	return map[string]string{
-		"Message-Id":        uuid,
+		"Message-Id":        msgID,
 		"Message-Type":      conceptType,
 		"Content-Type":      "application/json",
 		"X-Request-Id":      tid,
