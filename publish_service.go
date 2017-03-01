@@ -44,7 +44,7 @@ type publishService struct {
 	sync.RWMutex
 	clusterRouterAddress *url.URL
 	queueService         *queue
-	jobs                 map[string]*job
+	jobs                 map[string]*internalJob
 	httpService          *caller
 	gtgRetries           int
 }
@@ -53,21 +53,21 @@ func newPublishService(clusterRouterAddress *url.URL, queueService *queue, httpS
 	return publishService{
 		clusterRouterAddress: clusterRouterAddress,
 		queueService:         queueService,
-		jobs:                 make(map[string]*job),
+		jobs:                 make(map[string]*internalJob),
 		httpService:          httpService,
 		gtgRetries:           gtgRetries,
 	}
 }
 
 type publisher interface {
-	createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*job, error)
-	getJob(jobID string) (*job, error)
+	createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error)
+	getJob(jobID string) (*internalJob, error)
 	getJobIds() []string
-	runJob(theJob *job, authorization string)
+	runJob(theJob *internalJob, authorization string)
 	deleteJob(jobID string) error
 }
 
-func (s publishService) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*job, error) {
+func (s publishService) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
 	jobID := "job_" + generateID()
 	baseURLParsed, err := url.Parse(baseURL)
 	if err != nil {
@@ -85,25 +85,25 @@ func (s publishService) createJob(conceptType string, ids []string, baseURL stri
 		gtgURLParsed.Scheme = s.clusterRouterAddress.Scheme
 		gtgURLParsed.Host = s.clusterRouterAddress.Host
 	}
-	theJob := &job{
-		JobID:       jobID,
-		ConceptType: conceptType,
-		IDs:         ids,
-		URL:         baseURLParsed.String(),
-		GtgURL:      gtgURLParsed.String(),
-		Throttle:    throttle,
-		Progress:    0,
-		Status:      defined,
-		FailedIDs:   []string{},
+	theJob := &internalJob{
+		jobID:       jobID,
+		conceptType: conceptType,
+		ids:         ids,
+		url:         baseURLParsed.String(),
+		gtgURL:      gtgURLParsed.String(),
+		throttle:    throttle,
+		progress:    0,
+		status:      defined,
+		failedIDs:   []string{},
 	}
 	s.Lock()
 	defer s.Unlock()
 	s.jobs[jobID] = theJob
-	log.Infof("message=\"Created job\" jobID=%s", theJob.JobID)
+	log.Infof("message=\"Created job\" jobID=%s", theJob.jobID)
 	return theJob, nil
 }
 
-func (s publishService) getJob(jobID string) (*job, error) {
+func (s publishService) getJob(jobID string) (*internalJob, error) {
 	s.RLock()
 	defer s.RUnlock()
 	job, ok := s.jobs[jobID]
@@ -118,36 +118,34 @@ func (s publishService) getJobIds() []string {
 	s.RLock()
 	defer s.RUnlock()
 	for _, j := range s.jobs {
-		j.RLock()
-		jobIds = append(jobIds, j.JobID)
-		j.RUnlock()
+		jobIds = append(jobIds, j.jobID)
 	}
 	return jobIds
 }
 
-func (p publishService) runJob(theJob *job, authorization string) {
+func (p publishService) runJob(theJob *internalJob, authorization string) {
 	theJob.updateStatus(inProgress)
 	concepts := make(chan concept, loadBuffer)
 	failures := make(chan failure, loadBuffer)
-	err := (*p.httpService).reload(theJob.URL+reloadSuffix, authorization)
+	err := (*p.httpService).reload(theJob.url+reloadSuffix, authorization)
 	if err != nil {
-		log.Infof("message=\"Couldn't reload concepts\" conceptType=\"%s\" %v", theJob.ConceptType, err)
+		log.Infof("message=\"Couldn't reload concepts\" conceptType=\"%s\" %v", theJob.conceptType, err)
 	} else {
-		gtgErr := p.pollGtg(theJob.GtgURL)
+		gtgErr := p.pollGtg(theJob.gtgURL)
 		if gtgErr != nil {
-			log.Warnf("Timed out while waiting for transformer to reload. url=%v", theJob.GtgURL)
+			log.Warnf("Timed out while waiting for transformer to reload. url=%v", theJob.gtgURL)
 			theJob.updateStatus(failed)
 			return
 		}
 	}
-	var idsCount uint64 = 0
-	var idsCounted uint64 = 0
+	var idsCount uint64
+	var idsCounted uint64
 	go p.fetchAll(theJob, authorization, &idsCounted, &idsCount, concepts, failures)
-	for theJob.Progress = 0; atomic.LoadUint64(&idsCounted) == 0 || theJob.Progress < atomic.LoadUint64(&idsCount); theJob.incrementProgress() {
+	for theJob.setProgress(0); atomic.LoadUint64(&idsCounted) == 0 || theJob.getProgress() < atomic.LoadUint64(&idsCount); theJob.incrementProgress() {
 		select {
 		case f := <-failures:
-			log.Warnf("message=\"failure at a concept, in a job\" jobID=%v conceptID=%v %v", theJob.JobID, f.conceptID, f.error)
-			theJob.FailedIDs = append(theJob.FailedIDs, f.conceptID)
+			log.Warnf("message=\"failure at a concept, in a job\" jobID=%v conceptID=%v %v", theJob.jobID, f.conceptID, f.error)
+			theJob.appendFailedID(f.conceptID)
 		case c := <-concepts:
 			type shortPayload struct {
 				UUID string `json:"uuid"`
@@ -155,35 +153,35 @@ func (p publishService) runJob(theJob *job, authorization string) {
 			var unmarshalledPayload shortPayload
 			err = json.Unmarshal(c.payload, &unmarshalledPayload)
 			if err != nil {
-				log.Warnf("message=\"failed unmarshalling a concept\" jobID=%v conceptID=%v payload=%v %v", theJob.JobID, c.id, string(c.payload), err)
-				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
+				log.Warnf("message=\"failed unmarshalling a concept\" jobID=%v conceptID=%v payload=%v %v", theJob.jobID, c.id, string(c.payload), err)
+				theJob.appendFailedID(c.id)
 			}
 			resolvedID := unmarshalledPayload.UUID
 			if !reflect.DeepEqual(c.id, resolvedID) {
-				log.Infof("message=\"initial uuid doesn't match fetched resolved uuid\" originalUuid=%v resolvedUuid=%v jobId=%v", c.id, resolvedID, theJob.JobID)
+				log.Infof("message=\"initial uuid doesn't match fetched resolved uuid\" originalUuid=%v resolvedUuid=%v jobId=%v", c.id, resolvedID, theJob.jobID)
 			}
-			err := (*p.queueService).sendMessage(theJob.ConceptType, theJob.JobID, c.payload)
+			err := (*p.queueService).sendMessage(resolvedID, theJob.conceptType, theJob.jobID, c.payload)
 			if err != nil {
-				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v conceptType=%v %v", theJob.JobID, resolvedID, theJob.ConceptType, err)
-				theJob.FailedIDs = append(theJob.FailedIDs, c.id)
+				log.Warnf("message=\"failed publishing a concept\" jobID=%v conceptID=%v conceptType=%v %v", theJob.jobID, resolvedID, theJob.conceptType, err)
+				theJob.appendFailedID(c.id)
 			}
 		}
 	}
 	theJob.updateStatus(completed)
-	log.Infof("message=\"Completed job\" jobID=%s status=%s count=%d nFailedIds=%d", theJob.JobID, theJob.Status, theJob.Count, len(theJob.FailedIDs))
+	log.Infof("message=\"Completed job\" jobID=%s status=%s count=%d nFailedIds=%d", theJob.jobID, theJob.getStatus(), theJob.getCount(), len(theJob.getFailedIDs()))
 }
 
-func (s publishService) fetchAll(theJob *job, authorization string, idsCounted *uint64, idsCount *uint64, concepts chan<- concept, failures chan<- failure) {
+func (s publishService) fetchAll(theJob *internalJob, authorization string, idsCounted *uint64, idsCount *uint64, concepts chan<- concept, failures chan<- failure) {
 	ticker := time.NewTicker(time.Second / 1000)
-	if theJob.Throttle > 0 {
-		ticker = time.NewTicker(time.Second / time.Duration(theJob.Throttle))
+	if theJob.throttle > 0 {
+		ticker = time.NewTicker(time.Second / time.Duration(theJob.throttle))
 	}
 	idsChan := make(chan string, loadBuffer)
-	if len(theJob.IDs) > 0 {
+	if len(theJob.ids) > 0 {
 		go func() {
 			var ids []string
 			theJob.RLock()
-			ids = theJob.IDs
+			ids = theJob.ids
 			theJob.RUnlock()
 			for _, id := range ids {
 				idsChan <- id
@@ -201,8 +199,8 @@ func (s publishService) fetchAll(theJob *job, authorization string, idsCounted *
 	}
 }
 
-func (p publishService) fetchIDList(theJob *job, authorization string, idsCounted *uint64, idsCount *uint64, ids chan<- string, failures chan<- failure) {
-	body, fail := (*p.httpService).getIds(theJob.URL+idsSuffix, authorization)
+func (p publishService) fetchIDList(theJob *internalJob, authorization string, idsCounted *uint64, idsCount *uint64, ids chan<- string, failures chan<- failure) {
+	body, fail := (*p.httpService).getIds(theJob.url+idsSuffix, authorization)
 	if fail != nil {
 		pushToFailures(fail, failures)
 		atomic.AddUint64(idsCounted, 1)
@@ -217,7 +215,7 @@ func (p publishService) fetchIDList(theJob *job, authorization string, idsCounte
 			if err == io.EOF {
 				break
 			}
-			log.Warnf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL, err)
+			log.Warnf("Error parsing one concept id from /__ids response. url=%v %v", theJob.url, err)
 			continue
 		}
 		atomic.AddUint64(idsCount, 1)
@@ -229,7 +227,7 @@ func (p publishService) fetchIDList(theJob *job, authorization string, idsCounte
 		dec := json.NewDecoder(reader2)
 		err2 := dec.Decode(&le)
 		if err2 != nil {
-			fail := newFailure("", fmt.Errorf("Error parsing one concept id from /__ids response. url=%v %v", theJob.URL, err2))
+			fail := newFailure("", fmt.Errorf("Error parsing one concept id from /__ids response. url=%v %v", theJob.url, err2))
 			pushToFailures(fail, failures)
 			continue
 		}
@@ -240,16 +238,16 @@ func (p publishService) fetchIDList(theJob *job, authorization string, idsCounte
 	close(ids)
 }
 
-func (p publishService) fetchConcepts(theJob *job, authorization string, concepts chan<- concept, ids <-chan string, failures chan<- failure, ticker *time.Ticker) {
+func (p publishService) fetchConcepts(theJob *internalJob, authorization string, concepts chan<- concept, ids <-chan string, failures chan<- failure, ticker *time.Ticker) {
 	for {
 		id, ok := <-ids
 		if !ok {
 			break
 		}
-		if theJob.Throttle > 0 {
+		if theJob.throttle > 0 {
 			<-ticker.C
 		}
-		data, fail := (*p.httpService).fetchConcept(id, theJob.URL+id, authorization)
+		data, fail := (*p.httpService).fetchConcept(id, theJob.url+id, authorization)
 		if fail != nil {
 			log.Warnf("coulnd't fetch concept, putting it to failures %v", id)
 			pushToFailures(fail, failures)

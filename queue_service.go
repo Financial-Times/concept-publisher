@@ -16,12 +16,12 @@ func newQueueService(producer *producer.MessageProducer) kafkaQueue {
 }
 
 type queue interface {
-	sendMessage(conceptType string, tid string, payload []byte) error
+	sendMessage(id string, conceptType string, tid string, payload []byte) error
 }
 
-func (q kafkaQueue) sendMessage(conceptType string, tid string, payload []byte) error {
+func (q kafkaQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
 	msgID := uuid.NewV4().String()
-	log.Infof("Sending concept=[%s] uuid=[%s] tid=[%v]", msgID, conceptType, tid)
+	log.Infof("Sending concept=[%s] uuid=[%s] tid=[%v] msgId=[%v]", conceptType, id, tid, msgID)
 	message := producer.Message{
 		Headers: buildHeader(msgID, conceptType, tid),
 		Body:    string(payload),
