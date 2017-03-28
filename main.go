@@ -75,7 +75,7 @@ func main() {
 
 		var httpCall caller = newHttpCaller(httpClient)
 		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries)
-		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
+		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient, *s3RwAddress)
 		pubHandler := newPublishHandler(&publishService)
 		assignHandlers(*port, &pubHandler, &healthHandler)
 	}
