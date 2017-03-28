@@ -1,11 +1,6 @@
 package main
 
 import (
-	"github.com/Financial-Times/message-queue-go-producer/producer"
-	log "github.com/Sirupsen/logrus"
-	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
-	"github.com/jawher/mow.cli"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -13,6 +8,12 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/Financial-Times/message-queue-go-producer/producer"
+	log "github.com/Sirupsen/logrus"
+	"github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
+	"github.com/jawher/mow.cli"
 )
 
 func main() {
@@ -25,7 +26,6 @@ func main() {
 	})
 	proxyAddress := app.String(cli.StringOpt{
 		Name:   "proxy-address",
-		Value:  "http://localhost:8080",
 		Desc:   "Address used by the producer to connect to the queue",
 		EnvVar: "PROXY_ADDRESS",
 	})
@@ -43,12 +43,15 @@ func main() {
 	})
 	clusterRouterAddress := app.String(cli.StringOpt{
 		Name:   "cluster-router-address",
-		Value:  "http://ip-172-24-90-237.eu-west-1.compute.internal:8080",
 		Desc:   "The hostname and port to the router of the cluster, so that we can access any of the transformers by going to vulcan. (e.g. http://ip-172-24-90-237.eu-west-1.compute.internal:8080)",
 		EnvVar: "CLUSTER_ROUTER_ADDRESS",
 	})
+	s3RwAddress := app.String(cli.StringOpt{
+		Name:   "s3-rw-address",
+		Desc:   "Address used to connect to the S3 RW app",
+		EnvVar: "S3_RW_ADDRESS",
+	})
 	app.Action = func() {
-		messageProducer := producer.NewMessageProducer(producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic})
 		clusterRouterAddress, err := url.Parse(*clusterRouterAddress)
 		if err != nil {
 			log.Fatalf("Invalid clusterRouterAddress=%v %v", *clusterRouterAddress, err)
@@ -62,7 +65,14 @@ func main() {
 				}).Dial,
 			},
 		}
-		var queueService queue = newQueueService(&messageProducer)
+		var queueService queue
+		if *proxyAddress != "" {
+			messageProducer := producer.NewMessageProducer(producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic})
+			queueService = newQueueService(&messageProducer)
+		} else if *s3RwAddress != "" {
+			queueService = newHttpQueueService(httpClient, *s3RwAddress)
+		}
+
 		var httpCall caller = newHttpCaller(httpClient)
 		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries)
 		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient)
