@@ -39,8 +39,15 @@ func (h *healthcheckHandler) health() func(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *healthcheckHandler) gtg(w http.ResponseWriter, r *http.Request) {
-	if err := h.checkCanConnectToProxy(); err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
+
+	if h.kafkaPAddr != "" {
+		if err := h.checkCanConnectToProxy(); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+	} else {
+		if err := h.checkCanConnectToHttpEndpoint(); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
 	}
 }
 
@@ -62,27 +69,29 @@ func (h *healthcheckHandler) canConnectToHttpEndpoint() fthealth.Check {
 		PanicGuide:       "https://dewey.ft.com/concept-publisher.html",
 		Severity:         1,
 		TechnicalSummary: "Forwarding messages is broken. Check if HTTP endpoint is reachable.",
-		Checker: func() error {
-			url, err := url.Parse(h.httpEndpoint)
-			url.Path = "/__gtg"
-			if err != nil {
-				return err
-			}
-			req := &http.Request{
-				Method: "GET",
-				URL:    url,
-				Header: http.Header{
-					"Content-Type": {"application/json"},
-				},
-			}
+		Checker:          h.checkCanConnectToHttpEndpoint,
+	}
+}
 
-			resp, err := h.httpClient.Do(req)
-			if err != nil || resp.StatusCode != http.StatusOK {
-				return err
-			}
-			return nil
+func (h *healthcheckHandler) checkCanConnectToHttpEndpoint() error {
+	url, err := url.Parse(h.httpEndpoint)
+	url.Path = "/__gtg"
+	if err != nil {
+		return err
+	}
+	req := &http.Request{
+		Method: "GET",
+		URL:    url,
+		Header: http.Header{
+			"Content-Type": {"application/json"},
 		},
 	}
+
+	resp, err := h.httpClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return err
+	}
+	return nil
 }
 
 func (h *healthcheckHandler) checkCanConnectToProxy() error {
