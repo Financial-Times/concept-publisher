@@ -11,13 +11,16 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
+type httpClient interface {
+	Do(req *http.Request) (resp *http.Response, err error)
+}
+
 type httpQueue struct {
-	httpClient *http.Client
+	httpClient httpClient
 	endpoint   string
 }
 
-func newHttpQueueService(httpClient *http.Client, endpoint string) httpQueue {
-
+func newHttpQueueService(httpClient httpClient, endpoint string) httpQueue {
 	return httpQueue{
 		httpClient: httpClient,
 		endpoint:   endpoint,
