@@ -1,10 +1,11 @@
 package main
 
 import (
+	"time"
+
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
 	"github.com/satori/go.uuid"
-	"time"
 )
 
 type kafkaQueue struct {
