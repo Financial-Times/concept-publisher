@@ -54,7 +54,7 @@ func TestHttpQueueServiceBadResponse(t *testing.T) {
 
 func TestNewHttpQueueService(t *testing.T) {
 	actualHQ := newHttpQueueService(&mockHttpClient{}, "endpoint")
-	expectedHQ := httpQueue{&mockHttpClient{}, "endpoint"}
+	expectedHQ := &httpQueue{&mockHttpClient{}, "endpoint"}
 
 	assert.Equal(t, expectedHQ, actualHQ)
 }

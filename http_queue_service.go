@@ -20,21 +20,21 @@ type httpQueue struct {
 	endpoint   string
 }
 
-func newHttpQueueService(httpClient httpClient, endpoint string) httpQueue {
-	return httpQueue{
+func newHttpQueueService(httpClient httpClient, endpoint string) queue {
+	return &httpQueue{
 		httpClient: httpClient,
 		endpoint:   endpoint,
 	}
 }
 
-func (q httpQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
+func (q *httpQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
 
 	url, err := url.Parse(strings.TrimRight(q.endpoint, "/") + "/" + id)
 	if err != nil {
 		log.Errorf("Error generating URL: %s", err)
 		return err
 	}
-	log.Debug(url)
+
 	req := &http.Request{
 		Method: "PUT",
 		URL:    url,
@@ -49,11 +49,13 @@ func (q httpQueue) sendMessage(id string, conceptType string, tid string, payloa
 		ContentLength: int64(len(payload)),
 	}
 
+	log.Infof("Sending concept=[%s] uuid=[%s] tid=[%v] to %s", conceptType, id, tid, url)
 	resp, err := q.httpClient.Do(req)
 	if err != nil {
 		log.Errorf("Error in making request [%d]: %s", resp.StatusCode, err)
 		return err
 	}
+	defer resp.Body.Close()
 
 	return nil
 }

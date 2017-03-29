@@ -12,8 +12,8 @@ type kafkaQueue struct {
 	producer *producer.MessageProducer
 }
 
-func newQueueService(producer *producer.MessageProducer) kafkaQueue {
-	return kafkaQueue{producer: producer}
+func newQueueService(producer *producer.MessageProducer) queue {
+	return &kafkaQueue{producer: producer}
 }
 
 type queue interface {

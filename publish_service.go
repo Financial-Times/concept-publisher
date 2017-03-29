@@ -249,7 +249,7 @@ func (p publishService) fetchConcepts(theJob *internalJob, authorization string,
 		}
 		data, fail := (*p.httpService).fetchConcept(id, theJob.url+id, authorization)
 		if fail != nil {
-			log.Warnf("coulnd't fetch concept, putting it to failures %v", id)
+			log.Warnf("couldn't fetch concept, putting it to failures %v", id)
 			pushToFailures(fail, failures)
 			continue
 		}
