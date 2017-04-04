@@ -5,7 +5,6 @@ import (
 
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	log "github.com/Sirupsen/logrus"
-	"github.com/satori/go.uuid"
 )
 
 type kafkaQueue struct {
@@ -21,13 +20,12 @@ type queue interface {
 }
 
 func (q kafkaQueue) sendMessage(id string, conceptType string, tid string, payload []byte) error {
-	msgID := uuid.NewV4().String()
-	log.Infof("Sending concept=[%s] uuid=[%s] tid=[%v] msgId=[%v]", conceptType, id, tid, msgID)
+	log.Infof("Sending concept=[%s] uuid=[%s] tid=[%v]", conceptType, id, tid)
 	message := producer.Message{
-		Headers: buildHeader(msgID, conceptType, tid),
+		Headers: buildHeader(id, conceptType, tid),
 		Body:    string(payload),
 	}
-	return (*q.producer).SendMessage(msgID, message)
+	return (*q.producer).SendMessage(id, message)
 }
 
 func buildHeader(msgID string, conceptType string, tid string) map[string]string {
