@@ -100,7 +100,7 @@ func (h *healthcheckHandler) checkCanConnectToProxy() error {
 		log.Errorf("Healthcheck: Error reading request body: %v", err.Error())
 		return err
 	}
-	return checkIfTopicIsPresent(body, h.topic)
+	return nil
 }
 
 func (h *healthcheckHandler) checkProxyConnection() ([]byte, error) {
@@ -120,18 +120,4 @@ func (h *healthcheckHandler) checkProxyConnection() ([]byte, error) {
 		return nil, fmt.Errorf("Connecting to kafka proxy was not successful. Status: %d", resp.StatusCode)
 	}
 	return ioutil.ReadAll(resp.Body)
-}
-
-func checkIfTopicIsPresent(body []byte, searchedTopic string) error {
-	var topics []string
-	err := json.Unmarshal(body, &topics)
-	if err != nil {
-		return fmt.Errorf("Connection could be established to kafka-proxy, but a parsing error occured and topic could not be found. %v", err.Error())
-	}
-	for _, topic := range topics {
-		if topic == searchedTopic {
-			return nil
-		}
-	}
-	return errors.New("Connection could be established to kafka-proxy, but topic was not found")
 }
