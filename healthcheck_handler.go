@@ -93,7 +93,7 @@ func (h *healthcheckHandler) checkCanConnectToHttpEndpoint() error {
 }
 
 func (h *healthcheckHandler) checkCanConnectToProxy() error {
-	body, err := h.checkProxyConnection()
+	err := h.checkProxyConnection()
 	if err != nil {
 		log.Errorf("Healthcheck: Error reading request body: %v", err.Error())
 		return err
@@ -101,21 +101,21 @@ func (h *healthcheckHandler) checkCanConnectToProxy() error {
 	return nil
 }
 
-func (h *healthcheckHandler) checkProxyConnection() ([]byte, error) {
+func (h *healthcheckHandler) checkProxyConnection() error {
 	//check if proxy is running
 	req, err := http.NewRequest("GET", h.kafkaPAddr+"/topics", nil)
 	if err != nil {
 		log.Errorf("Error creating new kafka-proxy healthcheck request: %v", err.Error())
-		return nil, err
+		return err
 	}
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		log.Errorf("Healthcheck: Error executing kafka-proxy GET request: %v", err.Error())
-		return nil, err
+		return err
 	}
 	defer closeNice(resp)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Connecting to kafka proxy was not successful. Status: %d", resp.StatusCode)
+		return fmt.Errorf("Connecting to kafka proxy was not successful. Status: %d", resp.StatusCode)
 	}
-	return ioutil.ReadAll(resp.Body)
+	return nil
 }
