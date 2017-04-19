@@ -1,10 +1,7 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"net/url"
@@ -95,43 +92,29 @@ func (h *healthcheckHandler) checkCanConnectToHttpEndpoint() error {
 }
 
 func (h *healthcheckHandler) checkCanConnectToProxy() error {
-	body, err := h.checkProxyConnection()
+	err := h.checkProxyConnection()
 	if err != nil {
 		log.Errorf("Healthcheck: Error reading request body: %v", err.Error())
 		return err
 	}
-	return checkIfTopicIsPresent(body, h.topic)
+	return nil
 }
 
-func (h *healthcheckHandler) checkProxyConnection() ([]byte, error) {
-	//check if proxy is running and topic is present
+func (h *healthcheckHandler) checkProxyConnection() error {
+	//check if proxy is running
 	req, err := http.NewRequest("GET", h.kafkaPAddr+"/topics", nil)
 	if err != nil {
 		log.Errorf("Error creating new kafka-proxy healthcheck request: %v", err.Error())
-		return nil, err
+		return err
 	}
 	resp, err := h.httpClient.Do(req)
 	if err != nil {
 		log.Errorf("Healthcheck: Error executing kafka-proxy GET request: %v", err.Error())
-		return nil, err
+		return err
 	}
 	defer closeNice(resp)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Connecting to kafka proxy was not successful. Status: %d", resp.StatusCode)
+		return fmt.Errorf("Connecting to kafka proxy was not successful. Status: %d", resp.StatusCode)
 	}
-	return ioutil.ReadAll(resp.Body)
-}
-
-func checkIfTopicIsPresent(body []byte, searchedTopic string) error {
-	var topics []string
-	err := json.Unmarshal(body, &topics)
-	if err != nil {
-		return fmt.Errorf("Connection could be established to kafka-proxy, but a parsing error occured and topic could not be found. %v", err.Error())
-	}
-	for _, topic := range topics {
-		if topic == searchedTopic {
-			return nil
-		}
-	}
-	return errors.New("Connection could be established to kafka-proxy, but topic was not found")
+	return nil
 }
