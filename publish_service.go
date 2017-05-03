@@ -48,8 +48,8 @@ type publishService struct {
 	gtgRetries   int
 }
 
-func newPublishService(queueService *queue, httpService *caller, gtgRetries int) publishService {
-	return publishService{
+func newPublishService(queueService *queue, httpService *caller, gtgRetries int) *publishService {
+	return &publishService{
 		queueService: queueService,
 		jobs:         make(map[string]*internalJob),
 		httpService:  httpService,
@@ -65,7 +65,7 @@ type publisher interface {
 	deleteJob(jobID string) error
 }
 
-func (p publishService) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
+func (p *publishService) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
 	jobID := "job_" + generateID()
 	baseURLParsed, err := url.Parse(baseURL)
 	if err != nil {
@@ -93,7 +93,7 @@ func (p publishService) createJob(conceptType string, ids []string, baseURL stri
 	return theJob, nil
 }
 
-func (p publishService) getJob(jobID string) (*internalJob, error) {
+func (p *publishService) getJob(jobID string) (*internalJob, error) {
 	p.RLock()
 	defer p.RUnlock()
 	job, ok := p.jobs[jobID]
@@ -103,7 +103,7 @@ func (p publishService) getJob(jobID string) (*internalJob, error) {
 	return job, nil
 }
 
-func (p publishService) getJobIds() []string {
+func (p *publishService) getJobIds() []string {
 	jobIds := []string{}
 	p.RLock()
 	defer p.RUnlock()
@@ -113,7 +113,7 @@ func (p publishService) getJobIds() []string {
 	return jobIds
 }
 
-func (p publishService) runJob(theJob *internalJob, authorization string) {
+func (p *publishService) runJob(theJob *internalJob, authorization string) {
 	theJob.updateStatus(inProgress)
 	concepts := make(chan concept, loadBuffer)
 	failures := make(chan failure, loadBuffer)
@@ -161,7 +161,7 @@ func (p publishService) runJob(theJob *internalJob, authorization string) {
 	log.Infof("message=\"Completed job\" jobID=%s status=%s count=%d nFailedIds=%d", theJob.jobID, theJob.getStatus(), theJob.getCount(), len(theJob.getFailedIDs()))
 }
 
-func (p publishService) fetchAll(theJob *internalJob, authorization string, idsCounted *uint64, idsCount *uint64, concepts chan<- concept, failures chan<- failure) {
+func (p *publishService) fetchAll(theJob *internalJob, authorization string, idsCounted *uint64, idsCount *uint64, concepts chan<- concept, failures chan<- failure) {
 	ticker := time.NewTicker(time.Second / 1000)
 	if theJob.throttle > 0 {
 		ticker = time.NewTicker(time.Second / time.Duration(theJob.throttle))
@@ -189,7 +189,7 @@ func (p publishService) fetchAll(theJob *internalJob, authorization string, idsC
 	}
 }
 
-func (p publishService) fetchIDList(theJob *internalJob, authorization string, idsCounted *uint64, idsCount *uint64, ids chan<- string, failures chan<- failure) {
+func (p *publishService) fetchIDList(theJob *internalJob, authorization string, idsCounted *uint64, idsCount *uint64, ids chan<- string, failures chan<- failure) {
 	body, fail := (*p.httpService).getIds(theJob.url+idsSuffix, authorization)
 	if fail != nil {
 		pushToFailures(fail, failures)
@@ -228,7 +228,7 @@ func (p publishService) fetchIDList(theJob *internalJob, authorization string, i
 	close(ids)
 }
 
-func (p publishService) fetchConcepts(theJob *internalJob, authorization string, concepts chan<- concept, ids <-chan string, failures chan<- failure, ticker *time.Ticker) {
+func (p *publishService) fetchConcepts(theJob *internalJob, authorization string, concepts chan<- concept, ids <-chan string, failures chan<- failure, ticker *time.Ticker) {
 	for {
 		id, ok := <-ids
 		if !ok {
@@ -247,7 +247,7 @@ func (p publishService) fetchConcepts(theJob *internalJob, authorization string,
 	}
 }
 
-func (p publishService) deleteJob(jobID string) error {
+func (p *publishService) deleteJob(jobID string) error {
 	_, err := p.getJob(jobID)
 	if err != nil {
 		return err
@@ -258,7 +258,7 @@ func (p publishService) deleteJob(jobID string) error {
 	return nil
 }
 
-func (p publishService) pollGtg(gtgUrl string) error {
+func (p *publishService) pollGtg(gtgUrl string) error {
 	log.Infof("Waiting on transformer to be good to go. url=%s", gtgUrl)
 	for i := 0; i < p.gtgRetries; i++ {
 		gtgErr := (*p.httpService).checkGtg(gtgUrl)

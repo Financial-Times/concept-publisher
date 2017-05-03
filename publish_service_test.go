@@ -109,7 +109,7 @@ func TestCreateJob(t *testing.T) {
 				return
 			}
 			expectedJob := job{
-				JobID:       actualJob.jobID,
+				JobID:       "fdf",
 				ConceptType: test.conceptType,
 				IDs:         test.definedIDs,
 				URL:         test.expectedBaseURL,
@@ -120,7 +120,7 @@ func TestCreateJob(t *testing.T) {
 				FailedIDs:   []string{},
 			}
 			if !reflect.DeepEqual(*actualJob.getJob(), expectedJob) {
-				t.Errorf("test %v - wrong job. diff got vs want:\n%v\n%v", test.name, *actualJob, expectedJob)
+				t.Errorf("test %v - wrong job. diff got vs want:\n%v\n%v", test.name, *actualJob.getJob(), expectedJob)
 			}
 		})
 	}
