@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Financial-Times/message-queue-go-producer/producer"
+	status "github.com/Financial-Times/service-status-go/httphandlers"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -83,7 +84,8 @@ func assignHandlers(port int, publisherHandler *publishHandler, healthcheckHandl
 	m.HandleFunc("/jobs/{id}", publisherHandler.status).Methods("GET")
 	m.HandleFunc("/jobs/{id}", publisherHandler.deleteJob).Methods("DELETE")
 	m.HandleFunc("/__health", healthcheckHandler.health())
-	m.HandleFunc("/__gtg", healthcheckHandler.gtg)
+	m.HandleFunc(status.GTGPath, status.NewGoodToGoHandler(healthcheckHandler.gtg))
+	m.HandleFunc(status.BuildInfoPath, status.BuildInfoHandler)
 	log.Infof("Listening on [%v].\n", port)
 	err := http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	if err != nil {

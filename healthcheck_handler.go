@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"net/http"
-
 	"net/url"
 
 	fthealth "github.com/Financial-Times/go-fthealth"
+	"github.com/Financial-Times/service-status-go/gtg"
 	log "github.com/Sirupsen/logrus"
 )
 
@@ -27,7 +27,6 @@ func newHealthcheckHandler(topic string, kafkaPAddr string, httpClient *http.Cli
 }
 
 func (h *healthcheckHandler) health() func(w http.ResponseWriter, r *http.Request) {
-
 	if h.kafkaPAddr != "" {
 		return fthealth.Handler("Dependent services healthcheck", "Services: kafka-rest-proxy", h.canConnectToProxyHealthcheck())
 	}
@@ -35,17 +34,17 @@ func (h *healthcheckHandler) health() func(w http.ResponseWriter, r *http.Reques
 
 }
 
-func (h *healthcheckHandler) gtg(w http.ResponseWriter, r *http.Request) {
-
+func (h *healthcheckHandler) gtg() gtg.Status {
 	if h.kafkaPAddr != "" {
 		if err := h.checkCanConnectToProxy(); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
+			return gtg.Status{GoodToGo: false, Message: err.Error()}
 		}
 	} else {
 		if err := h.checkCanConnectToHttpEndpoint(); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
+			return gtg.Status{GoodToGo: false, Message: err.Error()}
 		}
 	}
+	return gtg.Status{GoodToGo: true}
 }
 
 func (h *healthcheckHandler) canConnectToProxyHealthcheck() fthealth.Check {

@@ -19,6 +19,14 @@
 			"versionExact": "0.1.1-k8s-remove-host-routing-rc1"
 		},
 		{
+			"checksumSHA1": "b25y7JSXBXfTNwMKFKdFMex9U+o=",
+			"path": "github.com/Financial-Times/service-status-go",
+			"revision": "3f5199736a3d7ae52394c63aac36834786825e21",
+			"revisionTime": "2016-03-23T11:15:42Z",
+			"version": "=0.1.0",
+			"versionExact": "0.1.0"
+		},
+		{
 			"checksumSHA1": "ZKxETlJdB2XubMrZnXB0FQimVA8=",
 			"path": "github.com/Sirupsen/logrus",
 			"revision": "10f801ebc38b33738c9d17d50860f484a0988ff5",
@@ -42,6 +50,12 @@
 			"path": "github.com/gorilla/mux",
 			"revision": "599cba5e7b6137d46ddf58fb1765f5d928e69604",
 			"revisionTime": "2017-02-28T22:43:54Z"
+		},
+		{
+			"checksumSHA1": "tUGxc7rfX0cmhOOUDhMuAZ9rWsA=",
+			"path": "github.com/hashicorp/go-version",
+			"revision": "03c5bf6be031b6dd45afec16b1cf94fc8938bc77",
+			"revisionTime": "2017-02-02T08:07:59Z"
 		},
 		{
 			"checksumSHA1": "pYoO37aSFZl2uJAXpePBDnGItZc=",

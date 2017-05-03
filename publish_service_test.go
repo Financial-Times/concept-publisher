@@ -3,12 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
-	"log"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -97,7 +97,6 @@ func TestCreateJob(t *testing.T) {
 			var mockHttpSer caller = nilHttpService{}
 			pubService := newPublishService(&mockQueueSer, &mockHttpSer, 1)
 			actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseURL, test.gtgUrl, test.throttle)
-			log.Print(pubService.jobs)
 			if err != nil {
 				if test.createErr != nil {
 					if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
