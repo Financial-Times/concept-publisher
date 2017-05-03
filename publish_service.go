@@ -42,20 +42,18 @@ type concept struct {
 
 type publishService struct {
 	sync.RWMutex
-	clusterRouterAddress *url.URL
-	queueService         *queue
-	jobs                 map[string]*internalJob
-	httpService          *caller
-	gtgRetries           int
+	queueService *queue
+	jobs         map[string]*internalJob
+	httpService  *caller
+	gtgRetries   int
 }
 
-func newPublishService(clusterRouterAddress *url.URL, queueService *queue, httpService *caller, gtgRetries int) publishService {
+func newPublishService(queueService *queue, httpService *caller, gtgRetries int) publishService {
 	return publishService{
-		clusterRouterAddress: clusterRouterAddress,
-		queueService:         queueService,
-		jobs:                 make(map[string]*internalJob),
-		httpService:          httpService,
-		gtgRetries:           gtgRetries,
+		queueService: queueService,
+		jobs:         make(map[string]*internalJob),
+		httpService:  httpService,
+		gtgRetries:   gtgRetries,
 	}
 }
 
@@ -67,23 +65,15 @@ type publisher interface {
 	deleteJob(jobID string) error
 }
 
-func (s publishService) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
+func (p publishService) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
 	jobID := "job_" + generateID()
 	baseURLParsed, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, err
 	}
-	if baseURLParsed.Host == "" {
-		baseURLParsed.Scheme = s.clusterRouterAddress.Scheme
-		baseURLParsed.Host = s.clusterRouterAddress.Host
-	}
 	gtgURLParsed, err := url.Parse(gtgURL)
 	if err != nil {
 		return nil, err
-	}
-	if gtgURLParsed.Host == "" {
-		gtgURLParsed.Scheme = s.clusterRouterAddress.Scheme
-		gtgURLParsed.Host = s.clusterRouterAddress.Host
 	}
 	theJob := &internalJob{
 		jobID:       jobID,
@@ -96,28 +86,28 @@ func (s publishService) createJob(conceptType string, ids []string, baseURL stri
 		status:      defined,
 		failedIDs:   []string{},
 	}
-	s.Lock()
-	defer s.Unlock()
-	s.jobs[jobID] = theJob
+	p.Lock()
+	defer p.Unlock()
+	p.jobs[jobID] = theJob
 	log.Infof("message=\"Created job\" jobID=%s", theJob.jobID)
 	return theJob, nil
 }
 
-func (s publishService) getJob(jobID string) (*internalJob, error) {
-	s.RLock()
-	defer s.RUnlock()
-	job, ok := s.jobs[jobID]
+func (p publishService) getJob(jobID string) (*internalJob, error) {
+	p.RLock()
+	defer p.RUnlock()
+	job, ok := p.jobs[jobID]
 	if !ok {
 		return nil, newNotFoundError(jobID)
 	}
 	return job, nil
 }
 
-func (s publishService) getJobIds() []string {
+func (p publishService) getJobIds() []string {
 	jobIds := []string{}
-	s.RLock()
-	defer s.RUnlock()
-	for _, j := range s.jobs {
+	p.RLock()
+	defer p.RUnlock()
+	for _, j := range p.jobs {
 		jobIds = append(jobIds, j.jobID)
 	}
 	return jobIds
@@ -171,7 +161,7 @@ func (p publishService) runJob(theJob *internalJob, authorization string) {
 	log.Infof("message=\"Completed job\" jobID=%s status=%s count=%d nFailedIds=%d", theJob.jobID, theJob.getStatus(), theJob.getCount(), len(theJob.getFailedIDs()))
 }
 
-func (s publishService) fetchAll(theJob *internalJob, authorization string, idsCounted *uint64, idsCount *uint64, concepts chan<- concept, failures chan<- failure) {
+func (p publishService) fetchAll(theJob *internalJob, authorization string, idsCounted *uint64, idsCount *uint64, concepts chan<- concept, failures chan<- failure) {
 	ticker := time.NewTicker(time.Second / 1000)
 	if theJob.throttle > 0 {
 		ticker = time.NewTicker(time.Second / time.Duration(theJob.throttle))
@@ -192,10 +182,10 @@ func (s publishService) fetchAll(theJob *internalJob, authorization string, idsC
 			close(idsChan)
 		}()
 	} else {
-		go s.fetchIDList(theJob, authorization, idsCounted, idsCount, idsChan, failures)
+		go p.fetchIDList(theJob, authorization, idsCounted, idsCount, idsChan, failures)
 	}
 	for i := 0; i < concurrentReaders; i++ {
-		go s.fetchConcepts(theJob, authorization, concepts, idsChan, failures, ticker)
+		go p.fetchConcepts(theJob, authorization, concepts, idsChan, failures, ticker)
 	}
 }
 
@@ -257,14 +247,14 @@ func (p publishService) fetchConcepts(theJob *internalJob, authorization string,
 	}
 }
 
-func (s publishService) deleteJob(jobID string) error {
-	_, err := s.getJob(jobID)
+func (p publishService) deleteJob(jobID string) error {
+	_, err := p.getJob(jobID)
 	if err != nil {
 		return err
 	}
-	s.Lock()
-	defer s.Unlock()
-	delete(s.jobs, jobID)
+	p.Lock()
+	defer p.Unlock()
+	delete(p.jobs, jobID)
 	return nil
 }
 

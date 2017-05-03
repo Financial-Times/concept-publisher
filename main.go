@@ -4,7 +4,6 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
-	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -41,21 +40,12 @@ func main() {
 		Desc:   "The number of times concept-publisher should try to poll a transformer's good-to-go endpoint if that responds to __reload with 2xx status. It's doing the reload concurrently, that's why we're waiting, the question is how much. One period is 5 seconds.",
 		EnvVar: "TRANSFORMER_GTG_RETRIES",
 	})
-	clusterRouterAddress := app.String(cli.StringOpt{
-		Name:   "cluster-router-address",
-		Desc:   "The hostname and port to the router of the cluster, so that we can access any of the transformers by going to vulcan. (e.g. http://ip-172-24-90-237.eu-west-1.compute.internal:8080)",
-		EnvVar: "CLUSTER_ROUTER_ADDRESS",
-	})
 	s3RwAddress := app.String(cli.StringOpt{
 		Name:   "s3-rw-address",
 		Desc:   "Address used to connect to the S3 RW app",
 		EnvVar: "S3_RW_ADDRESS",
 	})
 	app.Action = func() {
-		clusterRouterAddress, err := url.Parse(*clusterRouterAddress)
-		if err != nil {
-			log.Fatalf("Invalid clusterRouterAddress=%v %v", *clusterRouterAddress, err)
-		}
 		httpClient := &http.Client{
 			Transport: &http.Transport{
 				MaxIdleConnsPerHost: 128,
@@ -74,7 +64,7 @@ func main() {
 		}
 
 		var httpCall caller = newHttpCaller(httpClient)
-		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries)
+		var publishService publisher = newPublishService(&queueService, &httpCall, *gtgRetries)
 		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient, *s3RwAddress)
 		pubHandler := newPublishHandler(&publishService)
 		assignHandlers(*port, &pubHandler, &healthHandler)

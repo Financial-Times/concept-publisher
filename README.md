@@ -7,20 +7,6 @@ __Fetches concepts from concept-transformers and adds them to kafka.__
 
 `go get github.com/Financial-Times/concept-publisher`
 
-## Running locally
-
-```
-go build
-
-# Open tunnel to publishing cluster:
-ssh -L 8083:localhost:8080 core@pub-xp-tunnel-up.ft.com
-
-# Set up tunnel for cluster address:
-export CLUSTER_ROUTER_ADDRESS="http://localhost:8083"
-
-./concept-publisher
-```
-
 ## Endpoints
 
 ### GET /jobs
@@ -31,7 +17,7 @@ Return all the jobs' ids.
 
 * concept: the name of the concept type. It's important because there are unusual cases when this name differs from what is in the URL path.
 * url: url to use to get the transformed concept
-  * can either be absolute of relative - for relative the base url is the CLUSTER_ROUTER_ADDRESS
+  * it must be an absolute path
   * {url}/__count returns the number of concepts
   * {url}/__ids that lists the identities of the resources in the form '{"id":"abc"}\n{"id":"def"}'
   * {url}/{uid} that returns the transformed concept in UPP json format
@@ -47,8 +33,8 @@ Examples:
 curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
 {
   "concept": "special-reports",
-  "url": "/__special-reports-transformer/transformers/special-reports/",
-  "gtgUrl": "/__special-reports-transformer/__gtg",
+  "url": "http://special-reports-transformer:8080/transformers/special-reports/",
+  "gtgUrl": "http://special-reports-transformer:8080/__gtg",
   "throttle": 1000,
   "authorization": "Basic base64user:pass"
 }'
