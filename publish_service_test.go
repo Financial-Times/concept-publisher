@@ -109,7 +109,7 @@ func TestCreateJob(t *testing.T) {
 				return
 			}
 			expectedJob := job{
-				JobID:       "fdf",
+				JobID:       actualJob.jobID,
 				ConceptType: test.conceptType,
 				IDs:         test.definedIDs,
 				URL:         test.expectedBaseURL,
