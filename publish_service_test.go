@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"log"
 )
 
 const (
@@ -50,8 +51,8 @@ func TestCreateJob(t *testing.T) {
 		throttle        int
 		createErr       error
 		definedIDs      []string
-		expectedbaseURL string
-		expectedGtgUrl  string
+		expectedBaseURL string
+		expectedGtgURL  string
 	}{
 		{
 			name:            "one",
@@ -62,8 +63,8 @@ func TestCreateJob(t *testing.T) {
 			throttle:        1,
 			createErr:       nil,
 			definedIDs:      []string{},
-			expectedbaseURL: "http://special-reports-transformer:8080/transformers/special-reports/",
-			expectedGtgUrl:  "http://special-reports-transformer:8080/__gtg",
+			expectedBaseURL: "http://special-reports-transformer:8080/transformers/special-reports/",
+			expectedGtgURL:  "http://special-reports-transformer:8080/__gtg",
 		},
 		{
 			name:            "two",
@@ -74,8 +75,8 @@ func TestCreateJob(t *testing.T) {
 			throttle:        1,
 			createErr:       nil,
 			definedIDs:      []string{"1", "2"},
-			expectedbaseURL: "http://special-reports-transformer:8080/transformers/special-reports/",
-			expectedGtgUrl:  "http://special-reports-transformer:8080/__gtg",
+			expectedBaseURL: "http://special-reports-transformer:8080/transformers/special-reports/",
+			expectedGtgURL:  "http://special-reports-transformer:8080/__gtg",
 		},
 		{
 			name:            "two",
@@ -86,8 +87,8 @@ func TestCreateJob(t *testing.T) {
 			throttle:        1,
 			createErr:       nil,
 			definedIDs:      []string{"1", "2"},
-			expectedbaseURL: "",
-			expectedGtgUrl:  "",
+			expectedBaseURL: "",
+			expectedGtgURL:  "",
 		},
 	}
 	for _, test := range tests {
@@ -96,6 +97,7 @@ func TestCreateJob(t *testing.T) {
 			var mockHttpSer caller = nilHttpService{}
 			pubService := newPublishService(&mockQueueSer, &mockHttpSer, 1)
 			actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseURL, test.gtgUrl, test.throttle)
+			log.Print(pubService.jobs)
 			if err != nil {
 				if test.createErr != nil {
 					if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
@@ -110,8 +112,8 @@ func TestCreateJob(t *testing.T) {
 				JobID:       actualJob.jobID,
 				ConceptType: test.conceptType,
 				IDs:         test.definedIDs,
-				URL:         test.expectedbaseURL,
-				GtgURL:      test.expectedGtgUrl,
+				URL:         test.expectedBaseURL,
+				GtgURL:      test.expectedGtgURL,
 				Throttle:    test.throttle,
 				Progress:    0,
 				Status:      defined,
