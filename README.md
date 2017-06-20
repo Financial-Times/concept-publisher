@@ -5,11 +5,13 @@ __Fetches concepts from concept-transformers and adds them to kafka.__
 
 ## Installation
 
-    go get -u github.com/kardianos/govendor
-    go get -u github.com/Financial-Times/concept-publisher
-    cd $GOPATH/src/github.com/Financial-Times/concept-publisher
-    govendor sync
-    go build .
+```
+go get -u github.com/kardianos/govendor
+go get -u github.com/Financial-Times/concept-publisher
+cd $GOPATH/src/github.com/Financial-Times/concept-publisher
+govendor sync
+go build .
+```
 
 ## Endpoints
 

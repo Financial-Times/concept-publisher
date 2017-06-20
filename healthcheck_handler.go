@@ -4,76 +4,92 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
-	fthealth "github.com/Financial-Times/go-fthealth"
+	fthealth "github.com/Financial-Times/go-fthealth/v1_1"
+	"github.com/Financial-Times/message-queue-go-producer/producer"
 	"github.com/Financial-Times/service-status-go/gtg"
-	log "github.com/Sirupsen/logrus"
 )
 
-type healthcheckHandler struct {
-	kafkaPAddr   string
-	topic        string
+const requestTimeout = 4500
+
+type HealthCheck struct {
+	producer     producer.MessageProducer
 	httpClient   *http.Client
 	httpEndpoint string
 }
 
-func newHealthcheckHandler(topic string, kafkaPAddr string, httpClient *http.Client, httpEndpoint string) healthcheckHandler {
-	return healthcheckHandler{
-		kafkaPAddr:   kafkaPAddr,
-		topic:        topic,
+func NewHealthCheck(conf *producer.MessageProducerConfig, httpEndpoint string) *HealthCheck {
+	httpClient := &http.Client{Timeout: requestTimeout * time.Millisecond}
+	var p producer.MessageProducer
+	if conf != nil {
+		p = producer.NewMessageProducerWithHTTPClient(*conf, httpClient)
+	}
+
+	return &HealthCheck{
+		producer:     p,
 		httpClient:   httpClient,
 		httpEndpoint: httpEndpoint,
 	}
 }
 
-func (h *healthcheckHandler) health() func(w http.ResponseWriter, r *http.Request) {
-	if h.kafkaPAddr != "" {
-		return fthealth.Handler("Dependent services healthcheck", "Services: kafka-rest-proxy", h.canConnectToProxyHealthcheck())
-	}
-	return fthealth.Handler("Dependent services healthcheck", "Services: http-endpoint", h.canConnectToHttpEndpoint())
-
-}
-
-func (h *healthcheckHandler) gtg() gtg.Status {
-	if h.kafkaPAddr != "" {
-		if err := h.checkCanConnectToProxy(); err != nil {
-			return gtg.Status{GoodToGo: false, Message: err.Error()}
-		}
+func (h *HealthCheck) Health() func(w http.ResponseWriter, r *http.Request) {
+	checks := make([]fthealth.Check, 0)
+	if h.producer != nil {
+		checks = append(checks, h.canConnectToProxy())
 	} else {
-		if err := h.checkCanConnectToHttpEndpoint(); err != nil {
-			return gtg.Status{GoodToGo: false, Message: err.Error()}
-		}
+		checks = append(checks, h.canConnectToHttpEndpoint())
 	}
-	return gtg.Status{GoodToGo: true}
+	hc := fthealth.HealthCheck{
+		SystemCode:  "concept-publisher",
+		Name:        "Concept Publisher",
+		Description: "Checks if all the dependent services are reachable and healthy.",
+		Checks:      checks,
+	}
+	return fthealth.Handler(hc)
 }
 
-func (h *healthcheckHandler) canConnectToProxyHealthcheck() fthealth.Check {
+func (h *HealthCheck) canConnectToProxy() fthealth.Check {
 	return fthealth.Check{
-		BusinessImpact:   "Forwarding messages to kafka-proxy in coco won't work. Concept publishing won't work.",
+		BusinessImpact:   "Forwarding messages to kafka-proxy in won't work. Concept publishing won't work.",
 		Name:             "Forward messages to kafka-proxy.",
 		PanicGuide:       "https://dewey.ft.com/concept-publisher.html",
 		Severity:         1,
-		TechnicalSummary: "Forwarding messages is broken. Check if kafka-proxy in coco is reachable.",
-		Checker:          h.checkCanConnectToProxy,
+		TechnicalSummary: "Forwarding messages is broken. Check if kafka-proxy is reachable.",
+		Checker:          h.producer.ConnectivityCheck,
 	}
 }
 
-func (h *healthcheckHandler) canConnectToHttpEndpoint() fthealth.Check {
+func (h *HealthCheck) canConnectToHttpEndpoint() fthealth.Check {
 	return fthealth.Check{
 		BusinessImpact:   "Forwarding messages to HTTP endpoint will fail. Concept publishing won't work.",
 		Name:             "Forward messages to HTTP endpoint.",
 		PanicGuide:       "https://dewey.ft.com/concept-publisher.html",
 		Severity:         1,
 		TechnicalSummary: "Forwarding messages is broken. Check if HTTP endpoint is reachable.",
-		Checker:          h.checkCanConnectToHttpEndpoint,
+		Checker:          h.canConnectToHttpEndpointCheck,
 	}
 }
 
-func (h *healthcheckHandler) checkCanConnectToHttpEndpoint() error {
+func (h *HealthCheck) GTG() gtg.Status {
+	if h.producer != nil {
+		return gtgCheck(h.producer.ConnectivityCheck)
+	}
+	return gtgCheck(h.canConnectToHttpEndpointCheck)
+}
+
+func gtgCheck(handler func() (string, error)) gtg.Status {
+	if _, err := handler(); err != nil {
+		return gtg.Status{GoodToGo: false, Message: err.Error()}
+	}
+	return gtg.Status{GoodToGo: true}
+}
+
+func (h *HealthCheck) canConnectToHttpEndpointCheck() (string, error) {
 	url, err := url.Parse(h.httpEndpoint)
 	url.Path = "/__gtg"
 	if err != nil {
-		return err
+		return "", err
 	}
 	req := &http.Request{
 		Method: "GET",
@@ -84,36 +100,11 @@ func (h *healthcheckHandler) checkCanConnectToHttpEndpoint() error {
 	}
 
 	resp, err := h.httpClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return err
-	}
-	return nil
-}
-
-func (h *healthcheckHandler) checkCanConnectToProxy() error {
-	err := h.checkProxyConnection()
 	if err != nil {
-		log.Errorf("Healthcheck: Error reading request body: %v", err.Error())
-		return err
+		return "", fmt.Errorf("Could not connect to HTTP endpoint: %v", err.Error())
 	}
-	return nil
-}
-
-func (h *healthcheckHandler) checkProxyConnection() error {
-	//check if proxy is running
-	req, err := http.NewRequest("GET", h.kafkaPAddr+"/topics", nil)
-	if err != nil {
-		log.Errorf("Error creating new kafka-proxy healthcheck request: %v", err.Error())
-		return err
-	}
-	resp, err := h.httpClient.Do(req)
-	if err != nil {
-		log.Errorf("Healthcheck: Error executing kafka-proxy GET request: %v", err.Error())
-		return err
-	}
-	defer closeNice(resp)
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Connecting to kafka proxy was not successful. Status: %d", resp.StatusCode)
+		return "", fmt.Errorf("HTTP endpoint returned status: %d", resp.StatusCode)
 	}
-	return nil
+	return "Connectivity to HTTP endpoint is OK", nil
 }

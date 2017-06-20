@@ -3,20 +3,20 @@
 	"ignore": "test",
 	"package": [
 		{
-			"checksumSHA1": "6U1V2xI8bHaR95+gN+VfO9TqClE=",
-			"path": "github.com/Financial-Times/go-fthealth",
-			"revision": "bc27ed19189994eef0364e4a07879d5a3f3be76f",
-			"revisionTime": "2017-03-24T12:21:32Z",
-			"version": "=0.2.0",
-			"versionExact": "0.2.0"
+			"checksumSHA1": "fNgRM8ZlaDzdvSpuhSdGxEOrWi4=",
+			"path": "github.com/Financial-Times/go-fthealth/v1_1",
+			"revision": "e7ccca038327a0091303a52445ec1f0fb66cb97b",
+			"revisionTime": "2017-05-25T09:50:41Z",
+			"version": "0.3.0",
+			"versionExact": "0.3.0"
 		},
 		{
-			"checksumSHA1": "gzIBVJ2Sh53q8X8aD2I+wPsgtzk=",
+			"checksumSHA1": "4OtkapGYP9WO5JGqL3Dct/MUWTI=",
 			"path": "github.com/Financial-Times/message-queue-go-producer/producer",
-			"revision": "9279ce1d7bfa5c45992df1d80651d3e04e134bbf",
-			"revisionTime": "2017-04-07T10:21:12Z",
-			"version": "=0.1.1-k8s-remove-host-routing-rc1",
-			"versionExact": "0.1.1-k8s-remove-host-routing-rc1"
+			"revision": "3885ddaee76749d4b60329b94549edfebc4045ce",
+			"revisionTime": "2017-05-26T06:52:08Z",
+			"version": "0.2.0-k8s-remove-kafka-topic-check-rc1",
+			"versionExact": "0.2.0-k8s-remove-kafka-topic-check-rc1"
 		},
 		{
 			"checksumSHA1": "fpmb1rRyi/c4byRjNhsHaUppDg0=",
@@ -24,14 +24,14 @@
 			"revision": "3f5199736a3d7ae52394c63aac36834786825e21",
 			"revisionTime": "2016-03-23T11:15:42Z",
 			"tree": true,
-			"version": "=0.1.0",
+			"version": "0.1.0",
 			"versionExact": "0.1.0"
 		},
 		{
-			"checksumSHA1": "ZKxETlJdB2XubMrZnXB0FQimVA8=",
+			"checksumSHA1": "DYv6Q1+VfnUVxMwvk5IshAClLvw=",
 			"path": "github.com/Sirupsen/logrus",
-			"revision": "10f801ebc38b33738c9d17d50860f484a0988ff5",
-			"revisionTime": "2017-03-17T14:32:14Z"
+			"revision": "5e5dc898656f695e2a086b8e12559febbfc01562",
+			"revisionTime": "2017-05-15T10:45:16Z"
 		},
 		{
 			"checksumSHA1": "OFu4xJEIjiI8Suu+j/gabfp+y6Q=",
@@ -47,10 +47,10 @@
 			"revisionTime": "2017-02-24T19:39:55Z"
 		},
 		{
-			"checksumSHA1": "zmCk+lgIeiOf0Ng9aFP9aFy8ksE=",
+			"checksumSHA1": "m+Xb6aeLpAjIjq9Utnicv+e96TQ=",
 			"path": "github.com/gorilla/mux",
-			"revision": "599cba5e7b6137d46ddf58fb1765f5d928e69604",
-			"revisionTime": "2017-02-28T22:43:54Z"
+			"revision": "043ee6597c29786140136a5747b6a886364f5282",
+			"revisionTime": "2017-05-24T00:31:38Z"
 		},
 		{
 			"checksumSHA1": "tUGxc7rfX0cmhOOUDhMuAZ9rWsA=",
@@ -59,10 +59,10 @@
 			"revisionTime": "2017-02-02T08:07:59Z"
 		},
 		{
-			"checksumSHA1": "pYoO37aSFZl2uJAXpePBDnGItZc=",
+			"checksumSHA1": "NK3DaezXmT5QyDImKH+qqI2Xa7c=",
 			"path": "github.com/jawher/mow.cli",
-			"revision": "d3ffbc2f98b83e09dc8efd55ecec75eb5fd656ec",
-			"revisionTime": "2017-02-20T22:51:54Z"
+			"revision": "8327d12beb75e6471b7f045588acc318d1147146",
+			"revisionTime": "2017-04-30T13:52:12Z"
 		},
 		{
 			"checksumSHA1": "zKKp5SZ3d3ycKe4EKMNT0BqAWBw=",
