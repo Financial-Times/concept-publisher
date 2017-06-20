@@ -6,4 +6,4 @@
 *.iml
 concept-publisher
 .idea/
-...
+vendor/*/
