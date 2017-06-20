@@ -4,14 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	fthealth "github.com/Financial-Times/go-fthealth/v1_1"
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	"github.com/Financial-Times/service-status-go/gtg"
 )
-
-const requestTimeout = 4500
 
 type HealthCheck struct {
 	producer     producer.MessageProducer
@@ -19,16 +16,10 @@ type HealthCheck struct {
 	httpEndpoint string
 }
 
-func NewHealthCheck(conf *producer.MessageProducerConfig, httpEndpoint string) *HealthCheck {
-	httpClient := &http.Client{Timeout: requestTimeout * time.Millisecond}
-	var p producer.MessageProducer
-	if conf != nil {
-		p = producer.NewMessageProducerWithHTTPClient(*conf, httpClient)
-	}
-
+func NewHealthCheck(p producer.MessageProducer, httpEndpoint string, client *http.Client) *HealthCheck {
 	return &HealthCheck{
 		producer:     p,
-		httpClient:   httpClient,
+		httpClient:   client,
 		httpEndpoint: httpEndpoint,
 	}
 }

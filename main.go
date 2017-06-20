@@ -67,10 +67,9 @@ func main() {
 			},
 		}
 		var queueService queue
-		var producerConf *producer.MessageProducerConfig
+		var messageProducer producer.MessageProducer
 		if *proxyAddress != "" {
-			producerConf := &producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic}
-			messageProducer := producer.NewMessageProducer(*producerConf)
+			messageProducer = producer.NewMessageProducer(producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic})
 			queueService = newQueueService(&messageProducer)
 		} else if *s3RwAddress != "" {
 			queueService = newHttpQueueService(httpClient, *s3RwAddress)
@@ -78,7 +77,7 @@ func main() {
 
 		var httpCall caller = newHttpCaller(httpClient)
 		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries)
-		hc := NewHealthCheck(producerConf, *s3RwAddress)
+		hc := NewHealthCheck(messageProducer, *s3RwAddress, httpClient)
 		pubHandler := newPublishHandler(&publishService)
 		assignHandlers(*port, &pubHandler, hc)
 	}
