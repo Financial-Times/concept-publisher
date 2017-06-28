@@ -1,0 +1,15 @@
+# Default values for concept-publisher.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+service:
+  name: "" # The name of the service, should be defined in the specific app-configs folder.
+  hasHealthcheck: "true"
+image:
+  repository: coco/concept-publisher
+  version: "" # should be set explicitly at installation
+  pullPolicy: IfNotPresent
+resources:
+  limits:
+    memory: 1Gi
+
+
