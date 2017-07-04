@@ -37,8 +37,7 @@ func initializeHealthCheckWithoutProducer(isHttpConnectionHealthy bool) (*httpte
 }
 
 func TestNewHealthCheckWithProducer(t *testing.T) {
-	p := &producer.MessageProducerConfig{}
-	hc := NewHealthCheck(p, "endpoint")
+	hc := NewHealthCheck(producer.NewMessageProducer(producer.MessageProducerConfig{}), "endpoint", http.DefaultClient)
 
 	assert.NotNil(t, hc.producer)
 	assert.NotNil(t, hc.httpClient)
@@ -46,7 +45,7 @@ func TestNewHealthCheckWithProducer(t *testing.T) {
 }
 
 func TestNewHealthCheckWithoutProducer(t *testing.T) {
-	hc := NewHealthCheck(nil, "endpoint")
+	hc := NewHealthCheck(nil, "endpoint", http.DefaultClient)
 
 	assert.Nil(t, hc.producer)
 	assert.NotNil(t, hc.httpClient)
