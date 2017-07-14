@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Financial-Times/message-queue-go-producer/producer"
+	status "github.com/Financial-Times/service-status-go/httphandlers"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -66,8 +67,9 @@ func main() {
 			},
 		}
 		var queueService queue
+		var messageProducer producer.MessageProducer
 		if *proxyAddress != "" {
-			messageProducer := producer.NewMessageProducer(producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic})
+			messageProducer = producer.NewMessageProducer(producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic})
 			queueService = newQueueService(&messageProducer)
 		} else if *s3RwAddress != "" {
 			queueService = newHttpQueueService(httpClient, *s3RwAddress)
@@ -75,9 +77,9 @@ func main() {
 
 		var httpCall caller = newHttpCaller(httpClient)
 		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries)
-		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient, *s3RwAddress)
+		hc := NewHealthCheck(messageProducer, *s3RwAddress, httpClient)
 		pubHandler := newPublishHandler(&publishService)
-		assignHandlers(*port, &pubHandler, &healthHandler)
+		assignHandlers(*port, &pubHandler, hc)
 	}
 	err := app.Run(os.Args)
 	if err != nil {
@@ -85,15 +87,19 @@ func main() {
 	}
 }
 
-func assignHandlers(port int, publisherHandler *publishHandler, healthcheckHandler *healthcheckHandler) {
+func assignHandlers(port int, publisherHandler *publishHandler, hc *HealthCheck) {
 	m := mux.NewRouter()
 	http.Handle("/", handlers.CombinedLoggingHandler(os.Stdout, m))
 	m.HandleFunc("/jobs", publisherHandler.createJob).Methods("POST")
 	m.HandleFunc("/jobs", publisherHandler.listJobs).Methods("GET")
 	m.HandleFunc("/jobs/{id}", publisherHandler.status).Methods("GET")
 	m.HandleFunc("/jobs/{id}", publisherHandler.deleteJob).Methods("DELETE")
-	m.HandleFunc("/__health", healthcheckHandler.health())
-	m.HandleFunc("/__gtg", healthcheckHandler.gtg)
+	m.HandleFunc("/__health", hc.Health())
+	m.HandleFunc(status.GTGPath, status.NewGoodToGoHandler(hc.GTG))
+	m.HandleFunc(status.PingPath, status.PingHandler)
+	m.HandleFunc(status.PingPathDW, status.PingHandler)
+	m.HandleFunc(status.BuildInfoPath, status.BuildInfoHandler)
+	m.HandleFunc(status.BuildInfoPathDW, status.BuildInfoHandler)
 	log.Infof("Listening on [%v].\n", port)
 	err := http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	if err != nil {
