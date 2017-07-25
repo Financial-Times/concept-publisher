@@ -2,3 +2,5 @@
 replicaCount: 1
 service:
   name: concept-publisher
+env:
+  TOPIC: "Concept"
