@@ -18,7 +18,7 @@ const (
 func TestGetJobIds_Empty(t *testing.T) {
 	var mockQueueSer queue = newMockQueue()
 	var mockHttpSer caller = nilHttpService{}
-	pubService := newPublishService(&mockQueueSer, &mockHttpSer, 1)
+	pubService := newPublishService(nil, &mockQueueSer, &mockHttpSer, 1)
 	actualIds := pubService.getJobIds()
 	expectedIds := []string{}
 	if !reflect.DeepEqual(actualIds, expectedIds) {
@@ -95,7 +95,7 @@ func TestCreateJob(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var mockQueueSer queue = newMockQueue()
 			var mockHttpSer caller = nilHttpService{}
-			pubService := newPublishService(&mockQueueSer, &mockHttpSer, 1)
+			pubService := newPublishService(nil,&mockQueueSer, &mockHttpSer, 1)
 			actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseURL, test.gtgUrl, test.throttle)
 			if err != nil {
 				if test.createErr != nil {

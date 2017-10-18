@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
+	"net/url"
 )
 
 func main() {
@@ -41,12 +42,29 @@ func main() {
 		Desc:   "The number of times concept-publisher should try to poll a transformer's good-to-go endpoint if that responds to __reload with 2xx status. It's doing the reload concurrently, that's why we're waiting, the question is how much. One period is 5 seconds.",
 		EnvVar: "TRANSFORMER_GTG_RETRIES",
 	})
+	clusterRouterAddress := app.String(cli.StringOpt{
+		Name:   "cluster-router-address",
+		Desc:   "The hostname and port to the router of the cluster, so that we can access any of the transformers by going to vulcan. (e.g. http://ip-172-24-90-237.eu-west-1.compute.internal:8080)",
+		EnvVar: "CLUSTER_ROUTER_ADDRESS",
+	})
 	s3RwAddress := app.String(cli.StringOpt{
 		Name:   "s3-rw-address",
 		Desc:   "Address used to connect to the S3 RW app",
 		EnvVar: "S3_RW_ADDRESS",
 	})
 	app.Action = func() {
+		var parsedClusterRouterAddress *url.URL
+		if *clusterRouterAddress == ""{
+			log.Infof("No clusterRouterAddress provided, accessing transformers through provided absolute URLs.")
+		} else{
+			var err error
+			log.Infof("Couster routed address: %v", *clusterRouterAddress)
+			parsedClusterRouterAddress, err = url.Parse(*clusterRouterAddress)
+			if err != nil {
+				log.Fatalf("Invalid clusterRouterAddress=%v %v", *clusterRouterAddress, err)
+			}
+			log.Info("Valid clusterRouterAddress provided, accessing transformers through vulcan.")
+		}
 		httpClient := &http.Client{
 			Transport: &http.Transport{
 				MaxIdleConnsPerHost: 128,
@@ -66,7 +84,7 @@ func main() {
 		}
 
 		var httpCall caller = newHttpCaller(httpClient)
-		var publishService publisher = newPublishService(&queueService, &httpCall, *gtgRetries)
+		var publishService publisher = newPublishService(parsedClusterRouterAddress, &queueService, &httpCall, *gtgRetries)
 		hc := NewHealthCheck(messageProducer, *s3RwAddress, httpClient)
 		pubHandler := newPublishHandler(&publishService)
 		assignHandlers(*port, &pubHandler, hc)
