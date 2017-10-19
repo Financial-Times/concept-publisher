@@ -23,13 +23,18 @@ func TestHandlerCreateJob(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:           "illegal url",
+			name:           "empty url",
 			httpBody:       `{"url":""}`,
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "illegal url",
 			httpBody:       `{"url":"http://topics-transformer:8080/transformers/topics"}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "illegal url with vulcan routing",
+			httpBody:       `{"url":"/__topics-transformer/transformers/topics"}`,
 			expectedStatus: http.StatusBadRequest,
 		},
 		{

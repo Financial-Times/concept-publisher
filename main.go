@@ -58,7 +58,6 @@ func main() {
 			log.Infof("No clusterRouterAddress provided, accessing transformers through provided absolute URLs.")
 		} else{
 			var err error
-			log.Infof("Couster routed address: %v", *clusterRouterAddress)
 			parsedClusterRouterAddress, err = url.Parse(*clusterRouterAddress)
 			if err != nil {
 				log.Fatalf("Invalid clusterRouterAddress=%v %v", *clusterRouterAddress, err)

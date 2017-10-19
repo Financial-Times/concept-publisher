@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"net/url"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,13 +18,31 @@ const (
 )
 
 func TestGetJobIds_Empty(t *testing.T) {
-	var mockQueueSer queue = newMockQueue()
-	var mockHttpSer caller = nilHttpService{}
-	pubService := newPublishService(nil, &mockQueueSer, &mockHttpSer, 1)
-	actualIds := pubService.getJobIds()
-	expectedIds := []string{}
-	if !reflect.DeepEqual(actualIds, expectedIds) {
-		t.Errorf("wrong ids list: got %v want %v", actualIds, expectedIds)
+	clusterUrl := getClusterUrl(t)
+	tests := []struct {
+		name          string
+		routerAddress *url.URL
+	}{
+		{
+			name:          "Using cluster routing",
+			routerAddress: clusterUrl,
+		},
+		{
+			name:          "Using normal routing",
+			routerAddress: nil,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var mockQueueSer queue = newMockQueue()
+			var mockHttpSer caller = nilHttpService{}
+			pubService := newPublishService(test.routerAddress, &mockQueueSer, &mockHttpSer, 1)
+			actualIds := pubService.getJobIds()
+			expectedIds := []string{}
+			if !reflect.DeepEqual(actualIds, expectedIds) {
+				t.Errorf("wrong ids list: got %v want %v", actualIds, expectedIds)
+			}
+		})
 	}
 }
 
@@ -42,6 +62,7 @@ func TestGetJobIds_1(t *testing.T) {
 }
 
 func TestCreateJob(t *testing.T) {
+	clusterUrl := getClusterUrl(t)
 	tests := []struct {
 		name            string
 		baseURL         string
@@ -53,9 +74,49 @@ func TestCreateJob(t *testing.T) {
 		definedIDs      []string
 		expectedBaseURL string
 		expectedGtgURL  string
+		routerAddress   *url.URL
 	}{
 		{
-			name:            "one",
+			name:            "one id, cluster routing",
+			baseURL:         "/__special-reports-transformer/transformers/special-reports/",
+			gtgUrl:          "/__special-reports-transformer/__gtg",
+			conceptType:     "special-reports",
+			ids:             []string{},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{},
+			expectedBaseURL: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			expectedGtgURL:  "http://localhost:8080/__special-reports-transformer/__gtg",
+			routerAddress:   clusterUrl,
+		},
+		{
+			name:            "two ids, cluster routing",
+			baseURL:         "/__special-reports-transformer/transformers/special-reports/",
+			gtgUrl:          "/__special-reports-transformer/__gtg",
+			conceptType:     "topics",
+			ids:             []string{"1", "2"},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{"1", "2"},
+			expectedBaseURL: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			expectedGtgURL:  "http://localhost:8080/__special-reports-transformer/__gtg",
+			routerAddress:   clusterUrl,
+		},
+		{
+			name:            "two ids, empty URLs, cluster routing",
+			baseURL:         "",
+			gtgUrl:          "",
+			conceptType:     "topics",
+			ids:             []string{"1", "2"},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{"1", "2"},
+			expectedBaseURL: "http://localhost:8080",
+			expectedGtgURL:  "http://localhost:8080",
+			routerAddress:   clusterUrl,
+		},
+		{
+			name:            "one id, normal routing",
 			baseURL:         "http://special-reports-transformer:8080/transformers/special-reports/",
 			gtgUrl:          "http://special-reports-transformer:8080/__gtg",
 			conceptType:     "special-reports",
@@ -65,9 +126,10 @@ func TestCreateJob(t *testing.T) {
 			definedIDs:      []string{},
 			expectedBaseURL: "http://special-reports-transformer:8080/transformers/special-reports/",
 			expectedGtgURL:  "http://special-reports-transformer:8080/__gtg",
+			routerAddress:   nil,
 		},
 		{
-			name:            "two",
+			name:            "two ids, normal routing",
 			baseURL:         "http://special-reports-transformer:8080/transformers/special-reports/",
 			gtgUrl:          "http://special-reports-transformer:8080/__gtg",
 			conceptType:     "topics",
@@ -77,9 +139,10 @@ func TestCreateJob(t *testing.T) {
 			definedIDs:      []string{"1", "2"},
 			expectedBaseURL: "http://special-reports-transformer:8080/transformers/special-reports/",
 			expectedGtgURL:  "http://special-reports-transformer:8080/__gtg",
+			routerAddress:   nil,
 		},
 		{
-			name:            "two",
+			name:            "two ids, empty URLs, normal routing",
 			baseURL:         "",
 			gtgUrl:          "",
 			conceptType:     "topics",
@@ -89,13 +152,14 @@ func TestCreateJob(t *testing.T) {
 			definedIDs:      []string{"1", "2"},
 			expectedBaseURL: "",
 			expectedGtgURL:  "",
+			routerAddress:   nil,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var mockQueueSer queue = newMockQueue()
 			var mockHttpSer caller = nilHttpService{}
-			pubService := newPublishService(nil,&mockQueueSer, &mockHttpSer, 1)
+			pubService := newPublishService(test.routerAddress, &mockQueueSer, &mockHttpSer, 1)
 			actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseURL, test.gtgUrl, test.throttle)
 			if err != nil {
 				if test.createErr != nil {
@@ -583,4 +647,12 @@ func (h definedIdsHttpService) fetchConcept(id string, url string, auth string) 
 		conceptID: id,
 		error:     fmt.Errorf("Requested something that shouldn't have: %s", id),
 	}
+}
+
+func getClusterUrl(t *testing.T) *url.URL {
+	clusterUrl, err := url.Parse("http://localhost:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return clusterUrl
 }
