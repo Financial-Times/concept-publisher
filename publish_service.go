@@ -52,10 +52,10 @@ type publishService struct {
 func newPublishService(clusterRouterAddress *url.URL, queueService *queue, httpService *caller, gtgRetries int) *publishService {
 	return &publishService{
 		clusterRouterAddress: clusterRouterAddress,
-		queueService: queueService,
-		jobs:         make(map[string]*internalJob),
-		httpService:  httpService,
-		gtgRetries:   gtgRetries,
+		queueService:         queueService,
+		jobs:                 make(map[string]*internalJob),
+		httpService:          httpService,
+		gtgRetries:           gtgRetries,
 	}
 }
 
@@ -77,11 +77,15 @@ func (p *publishService) createJob(conceptType string, ids []string, baseURL str
 	if err != nil {
 		return nil, err
 	}
-	if p.clusterRouterAddress != nil{
-		baseURLParsed.Scheme = p.clusterRouterAddress.Scheme
-		baseURLParsed.Host = p.clusterRouterAddress.Host
-		gtgURLParsed.Scheme = p.clusterRouterAddress.Scheme
-		gtgURLParsed.Host = p.clusterRouterAddress.Host
+	if p.clusterRouterAddress != nil {
+		if baseURLParsed.Host == "" {
+			baseURLParsed.Scheme = p.clusterRouterAddress.Scheme
+			baseURLParsed.Host = p.clusterRouterAddress.Host
+		}
+		if gtgURLParsed.Host == "" {
+			gtgURLParsed.Scheme = p.clusterRouterAddress.Scheme
+			gtgURLParsed.Host = p.clusterRouterAddress.Host
+		}
 	}
 	theJob := &internalJob{
 		jobID:       jobID,

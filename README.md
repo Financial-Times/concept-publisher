@@ -13,6 +13,14 @@ govendor sync
 go build .
 ```
 
+## Configuration
+
+### Vulcan-based routing
+For environments using vulcan-based routing, set the `CLUSTER_ROUTER_ADDRESS`.
+
+### URL-based routing
+For environments using regular URLs, don't set the `CLUSTER_ROUTER_ADDRESS`.
+
 ## Endpoints
 
 ### GET /jobs
@@ -23,7 +31,10 @@ Return all the jobs' ids.
 
 * concept: the name of the concept type. It's important because there are unusual cases when this name differs from what is in the URL path.
 * url: url to use to get the transformed concept
-  * it must be an absolute path
+  * if using vulcan-based routing
+    * it can be a relative URL, whose base is the `CLUSTER_ROUTER_ADDRESS`
+    * it can be an absolute URL
+  * if using normal routing, it must be an absolute URL
   * {url}/__count returns the number of concepts
   * {url}/__ids that lists the identities of the resources in the form '{"id":"abc"}\n{"id":"def"}'
   * {url}/{uid} that returns the transformed concept in UPP json format
@@ -33,7 +44,7 @@ Not all applications expose a good-to-go endpoint, if you still want a successfu
 * throttle: no of req/s when calling the transformers to get transformed content
 * authorization (optional)
 
-Examples:
+#### Examples for the K8S (regular routing) stack
 
 ```
 curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
@@ -42,7 +53,6 @@ curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
   "url": "http://special-reports-transformer:8080/transformers/special-reports/",
   "gtgUrl": "http://special-reports-transformer:8080/__gtg",
   "throttle": 1000,
-  "authorization": "Basic base64user:pass"
 }'
 
 curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
@@ -52,8 +62,32 @@ curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
   "url": "https://brands-transformer-up.ft.com/transformers/brands/",
   "gtgUrl": "https://brands-transformer-up.ft.com/build-info",
   "throttle": 1000
+  "authorization": "Basic base64user:pass"
 }'
 ```
+
+#### Examples for the current (CoCo, vulcan-routing) stack
+
+```
+curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
+{
+  "concept": "special-reports",
+  "url": "/__special-reports-transformer/transformers/special-reports/",
+  "gtgUrl": "/__special-reports-transformer/__gtg",
+  "throttle": 1000,
+}'
+
+curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
+{
+  "concept": "brands",
+  "ids": ["uuid1", "uuid2"],
+  "url": "https://brands-transformer-up.ft.com/transformers/brands/",
+  "gtgUrl": "https://brands-transformer-up.ft.com/build-info",
+  "throttle": 1000
+  "authorization": "Basic base64user:pass"
+}'
+```
+
 
 ### GET /jobs/{id}
 

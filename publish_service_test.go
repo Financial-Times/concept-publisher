@@ -77,7 +77,7 @@ func TestCreateJob(t *testing.T) {
 		routerAddress   *url.URL
 	}{
 		{
-			name:            "one id, cluster routing",
+			name:            "one id, cluster routing, relative URLs",
 			baseURL:         "/__special-reports-transformer/transformers/special-reports/",
 			gtgUrl:          "/__special-reports-transformer/__gtg",
 			conceptType:     "special-reports",
@@ -90,7 +90,20 @@ func TestCreateJob(t *testing.T) {
 			routerAddress:   clusterUrl,
 		},
 		{
-			name:            "two ids, cluster routing",
+			name:            "one id, cluster routing, absolute URLs",
+			baseURL:         "http://special-reports-transformer.ft.com/transformers/special-reports/",
+			gtgUrl:          "http://special-reports-transformer.ft.com/__gtg",
+			conceptType:     "special-reports",
+			ids:             []string{},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{},
+			expectedBaseURL: "http://special-reports-transformer.ft.com/transformers/special-reports/",
+			expectedGtgURL:  "http://special-reports-transformer.ft.com/__gtg",
+			routerAddress:   clusterUrl,
+		},
+		{
+			name:            "two ids, cluster routing, relative URLs",
 			baseURL:         "/__special-reports-transformer/transformers/special-reports/",
 			gtgUrl:          "/__special-reports-transformer/__gtg",
 			conceptType:     "topics",
