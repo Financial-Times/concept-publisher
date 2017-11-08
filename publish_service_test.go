@@ -3,12 +3,14 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"net/url"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"net/url"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -16,17 +18,31 @@ const (
 )
 
 func TestGetJobIds_Empty(t *testing.T) {
-	clusterUrl, err := url.Parse("http://localhost:8080")
-	if err != nil {
-		t.Fatal(err)
+	clusterUrl := getClusterUrl(t)
+	tests := []struct {
+		name          string
+		routerAddress *url.URL
+	}{
+		{
+			name:          "Using cluster routing",
+			routerAddress: clusterUrl,
+		},
+		{
+			name:          "Using normal routing",
+			routerAddress: nil,
+		},
 	}
-	var mockQueueSer queue = newMockQueue()
-	var mockHttpSer caller = nilHttpService{}
-	pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
-	actualIds := pubService.getJobIds()
-	expectedIds := []string{}
-	if !reflect.DeepEqual(actualIds, expectedIds) {
-		t.Errorf("wrong ids list: got %v want %v", actualIds, expectedIds)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var mockQueueSer queue = newMockQueue()
+			var mockHttpSer caller = nilHttpService{}
+			pubService := newPublishService(test.routerAddress, &mockQueueSer, &mockHttpSer, 1)
+			actualIds := pubService.getJobIds()
+			expectedIds := []string{}
+			if !reflect.DeepEqual(actualIds, expectedIds) {
+				t.Errorf("wrong ids list: got %v want %v", actualIds, expectedIds)
+			}
+		})
 	}
 }
 
@@ -46,95 +62,118 @@ func TestGetJobIds_1(t *testing.T) {
 }
 
 func TestCreateJob(t *testing.T) {
+	clusterUrl := getClusterUrl(t)
 	tests := []struct {
-		name         string
-		clusterUrl   string
-		baseUrl      string
-		gtgUrl       string
-		conceptType  string
-		ids          []string
-		throttle     int
-		createErr    error
-		definedIDs   []string
-		finalBaseUrl string
-		finalGtgUrl  string
+		name            string
+		baseURL         string
+		gtgUrl          string
+		conceptType     string
+		ids             []string
+		throttle        int
+		createErr       error
+		definedIDs      []string
+		expectedBaseURL string
+		expectedGtgURL  string
+		routerAddress   *url.URL
 	}{
 		{
-			name:         "one",
-			clusterUrl:   "http://localhost:8080",
-			baseUrl:      "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
-			gtgUrl:       "http://localhost:8080/__special-reports-transformer/__gtg",
-			conceptType:  "special-reports",
-			ids:          []string{},
-			throttle:     1,
-			createErr:    nil,
-			definedIDs:   []string{},
-			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
-			finalGtgUrl:  "http://localhost:8080/__special-reports-transformer/__gtg",
+			name:            "one id, cluster routing, relative URLs",
+			baseURL:         "/__special-reports-transformer/transformers/special-reports/",
+			gtgUrl:          "/__special-reports-transformer/__gtg",
+			conceptType:     "special-reports",
+			ids:             []string{},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{},
+			expectedBaseURL: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			expectedGtgURL:  "http://localhost:8080/__special-reports-transformer/__gtg",
+			routerAddress:   clusterUrl,
 		},
 		{
-			name:         "two",
-			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			baseUrl:      "/__special-reports-transformer/transformers/special-reports",
-			gtgUrl:       "/__special-reports-transformer/__gtg",
-			conceptType:  "special-reports-otherwise",
-			ids:          []string{},
-			throttle:     1,
-			createErr:    nil,
-			definedIDs:   []string{},
-			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/transformers/special-reports",
-			finalGtgUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__special-reports-transformer/__gtg",
+			name:            "one id, cluster routing, absolute URLs",
+			baseURL:         "http://special-reports-transformer.ft.com/transformers/special-reports/",
+			gtgUrl:          "http://special-reports-transformer.ft.com/__gtg",
+			conceptType:     "special-reports",
+			ids:             []string{},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{},
+			expectedBaseURL: "http://special-reports-transformer.ft.com/transformers/special-reports/",
+			expectedGtgURL:  "http://special-reports-transformer.ft.com/__gtg",
+			routerAddress:   clusterUrl,
 		},
 		{
-			name:         "three",
-			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			baseUrl:      "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
-			gtgUrl:       "http://somethingelse:9090/__special-reports-transformer/__gtg",
-			conceptType:  "special-reports",
-			ids:          []string{},
-			throttle:     1,
-			createErr:    nil,
-			definedIDs:   []string{},
-			finalBaseUrl: "http://somethingelse:9090/__special-reports-transformer/transformers/special-reports/",
-			finalGtgUrl:  "http://somethingelse:9090/__special-reports-transformer/__gtg",
+			name:            "two ids, cluster routing, relative URLs",
+			baseURL:         "/__special-reports-transformer/transformers/special-reports/",
+			gtgUrl:          "/__special-reports-transformer/__gtg",
+			conceptType:     "topics",
+			ids:             []string{"1", "2"},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{"1", "2"},
+			expectedBaseURL: "http://localhost:8080/__special-reports-transformer/transformers/special-reports/",
+			expectedGtgURL:  "http://localhost:8080/__special-reports-transformer/__gtg",
+			routerAddress:   clusterUrl,
 		},
 		{
-			name:         "four",
-			clusterUrl:   "http://localhost:8080",
-			baseUrl:      "/__special-reports-transformer/transformers/topics/",
-			gtgUrl:       "/__special-reports-transformer/__gtg",
-			conceptType:  "topics",
-			ids:          []string{},
-			throttle:     1,
-			createErr:    nil,
-			definedIDs:   []string{},
-			finalBaseUrl: "http://localhost:8080/__special-reports-transformer/transformers/topics/",
-			finalGtgUrl:  "http://localhost:8080/__special-reports-transformer/__gtg",
+			name:            "two ids, empty URLs, cluster routing",
+			baseURL:         "",
+			gtgUrl:          "",
+			conceptType:     "topics",
+			ids:             []string{"1", "2"},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{"1", "2"},
+			expectedBaseURL: "http://localhost:8080",
+			expectedGtgURL:  "http://localhost:8080",
+			routerAddress:   clusterUrl,
 		},
 		{
-			name:         "five",
-			clusterUrl:   "http://ip-172-24-158-162.eu-west-1.compute.internal:8080",
-			baseUrl:      "/__topics-transformer/transformers/topics/",
-			gtgUrl:       "/__topics-transformer/__gtg",
-			conceptType:  "topics",
-			ids:          []string{"1", "2"},
-			throttle:     1,
-			createErr:    nil,
-			definedIDs:   []string{"1", "2"},
-			finalBaseUrl: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics/",
-			finalGtgUrl:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/__gtg",
+			name:            "one id, normal routing",
+			baseURL:         "http://special-reports-transformer:8080/transformers/special-reports/",
+			gtgUrl:          "http://special-reports-transformer:8080/__gtg",
+			conceptType:     "special-reports",
+			ids:             []string{},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{},
+			expectedBaseURL: "http://special-reports-transformer:8080/transformers/special-reports/",
+			expectedGtgURL:  "http://special-reports-transformer:8080/__gtg",
+			routerAddress:   nil,
+		},
+		{
+			name:            "two ids, normal routing",
+			baseURL:         "http://special-reports-transformer:8080/transformers/special-reports/",
+			gtgUrl:          "http://special-reports-transformer:8080/__gtg",
+			conceptType:     "topics",
+			ids:             []string{"1", "2"},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{"1", "2"},
+			expectedBaseURL: "http://special-reports-transformer:8080/transformers/special-reports/",
+			expectedGtgURL:  "http://special-reports-transformer:8080/__gtg",
+			routerAddress:   nil,
+		},
+		{
+			name:            "two ids, empty URLs, normal routing",
+			baseURL:         "",
+			gtgUrl:          "",
+			conceptType:     "topics",
+			ids:             []string{"1", "2"},
+			throttle:        1,
+			createErr:       nil,
+			definedIDs:      []string{"1", "2"},
+			expectedBaseURL: "",
+			expectedGtgURL:  "",
+			routerAddress:   nil,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			clusterUrl, err := url.Parse(test.clusterUrl)
-			if err != nil {
-				t.Error(err)
-			}
 			var mockQueueSer queue = newMockQueue()
 			var mockHttpSer caller = nilHttpService{}
-			pubService := newPublishService(clusterUrl, &mockQueueSer, &mockHttpSer, 1)
-			actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseUrl, test.gtgUrl, test.throttle)
+			pubService := newPublishService(test.routerAddress, &mockQueueSer, &mockHttpSer, 1)
+			actualJob, err := pubService.createJob(test.conceptType, test.ids, test.baseURL, test.gtgUrl, test.throttle)
 			if err != nil {
 				if test.createErr != nil {
 					if !strings.HasPrefix(err.Error(), test.createErr.Error()) {
@@ -149,15 +188,15 @@ func TestCreateJob(t *testing.T) {
 				JobID:       actualJob.jobID,
 				ConceptType: test.conceptType,
 				IDs:         test.definedIDs,
-				URL:         test.finalBaseUrl,
-				GtgURL:      test.finalGtgUrl,
+				URL:         test.expectedBaseURL,
+				GtgURL:      test.expectedGtgURL,
 				Throttle:    test.throttle,
 				Progress:    0,
 				Status:      defined,
 				FailedIDs:   []string{},
 			}
 			if !reflect.DeepEqual(*actualJob.getJob(), expectedJob) {
-				t.Errorf("test %v - wrong job. diff got vs want:\n%v\n%v", test.name, *actualJob, expectedJob)
+				t.Errorf("test %v - wrong job. diff got vs want:\n%v\n%v", test.name, *actualJob.getJob(), expectedJob)
 			}
 		})
 	}
@@ -213,21 +252,16 @@ func TestDeleteJob(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			clusterUrl, err := url.Parse("http://localhost:8080/")
-			if err != nil {
-				t.Fatal(err)
-			}
 			var mockQueueSer queue = newMockQueue()
 			var mockHttpSer caller = nilHttpService{}
 			pubService := publishService{
-				clusterRouterAddress: clusterUrl,
-				queueService:         &mockQueueSer,
-				jobs:                 test.jobs,
-				httpService:          &mockHttpSer,
-				gtgRetries:           1,
+				queueService: &mockQueueSer,
+				jobs:         test.jobs,
+				httpService:  &mockHttpSer,
+				gtgRetries:   1,
 			}
 
-			err = pubService.deleteJob(test.jobIDToDelete)
+			err := pubService.deleteJob(test.jobIDToDelete)
 
 			if err != nil {
 				if test.deleteErr != nil {
@@ -265,7 +299,7 @@ func TestRunJob(t *testing.T) {
 	}{
 		{
 			name:    "one",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://topics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
 				"2": "2",
@@ -278,7 +312,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:    "reload error to ignore",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://topics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
 				"2": "2",
@@ -292,7 +326,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:    "reload ok but gtg times out",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://topics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
 				"2": "2",
@@ -306,7 +340,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:    "three",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://topics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "X1",
 				"2": "X2",
@@ -319,7 +353,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:    "four",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://topics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
 				"2": "2",
@@ -336,7 +370,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:    "five",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://topics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
 				"2": "\"2",
@@ -349,7 +383,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:    "six",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://opics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
 				"3": "3",
@@ -362,7 +396,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:    "seven",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://topics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
 				"2": "2",
@@ -375,7 +409,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:    "eight",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://topics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
 				"2": "2",
@@ -392,7 +426,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:    "nine",
-			baseURL: "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL: "http://topics-transformer:8080/transformers/topics",
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
 				"2": "2",
@@ -408,7 +442,7 @@ func TestRunJob(t *testing.T) {
 		},
 		{
 			name:     "throttle",
-			baseURL:  "http://ip-172-24-158-162.eu-west-1.compute.internal:8080/__topics-transformer/transformers/topics",
+			baseURL:  "http://topics-transformer:8080/transformers/topics",
 			throttle: 10,
 			definedIdsToResolvedIds: map[string]string{
 				"1": "1",
@@ -423,11 +457,6 @@ func TestRunJob(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
-			clusterUrl, err := url.Parse("http://ip-172-24-158-162.eu-west-1.compute.internal:8080")
-			if err != nil {
-				t.Fatal(err)
-			}
 			var mockQueueSer queue = test.queueSer
 			var mockHttpSer caller = definedIdsHttpService{
 				definedToResolvedIs: test.definedIdsToResolvedIds,
@@ -448,8 +477,7 @@ func TestRunJob(t *testing.T) {
 			}
 
 			pubService := publishService{
-				clusterRouterAddress: clusterUrl,
-				queueService:         &mockQueueSer,
+				queueService: &mockQueueSer,
 				jobs: map[string]*internalJob{
 					"job_1": oneJob,
 				},
@@ -632,4 +660,12 @@ func (h definedIdsHttpService) fetchConcept(id string, url string, auth string) 
 		conceptID: id,
 		error:     fmt.Errorf("Requested something that shouldn't have: %s", id),
 	}
+}
+
+func getClusterUrl(t *testing.T) *url.URL {
+	clusterUrl, err := url.Parse("http://localhost:8080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return clusterUrl
 }

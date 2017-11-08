@@ -23,18 +23,23 @@ func TestHandlerCreateJob(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:           "illegal url",
+			name:           "empty url",
 			httpBody:       `{"url":""}`,
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "illegal url",
+			httpBody:       `{"url":"http://topics-transformer:8080/transformers/topics"}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "illegal url with vulcan routing",
 			httpBody:       `{"url":"/__topics-transformer/transformers/topics"}`,
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:     "missing fields",
-			httpBody: `{"concept":"topics", "url":"/__topics-transformer/transformers/topics"}`,
+			httpBody: `{"concept":"topics", "url":"http://topics-transformer:8080/transformers/topics"}`,
 			createJobF: func(ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
 				return &internalJob{jobID: "1"}, nil
 			},
@@ -42,7 +47,7 @@ func TestHandlerCreateJob(t *testing.T) {
 		},
 		{
 			name:     "error at subsequent call",
-			httpBody: `{"concept":"topics", "url":"/__topics-transformer/transformers/topics", "throttle": 100}`,
+			httpBody: `{"concept":"topics", "url":"http://topics-transformer:8080/transformers/topics", "throttle": 100}`,
 			createJobF: func(ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
 				return nil, errors.New("error creating job because of something")
 			},
@@ -51,27 +56,29 @@ func TestHandlerCreateJob(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		request, err := http.NewRequest("POST", "/jobs", bytes.NewReader([]byte(test.httpBody)))
-		if err != nil {
-			t.Error(err)
-		}
-		var pubService publisher = mockedPublisher{
-			createJobF: test.createJobF,
-			runJobF:    func(theJob *internalJob, authorization string) {},
-		}
-		pubHandler := newPublishHandler(&pubService)
-		recorder := httptest.NewRecorder()
-		handler := http.HandlerFunc(pubHandler.createJob)
+		t.Run(test.name, func(t *testing.T) {
+			request, err := http.NewRequest("POST", "/jobs", bytes.NewReader([]byte(test.httpBody)))
+			if err != nil {
+				t.Error(err)
+			}
+			var pubService publisher = mockedPublisher{
+				createJobF: test.createJobF,
+				runJobF:    func(theJob *internalJob, authorization string) {},
+			}
+			pubHandler := newPublishHandler(&pubService)
+			recorder := httptest.NewRecorder()
+			handler := http.HandlerFunc(pubHandler.createJob)
 
-		handler.ServeHTTP(recorder, request)
+			handler.ServeHTTP(recorder, request)
 
-		if actualStatus := recorder.Code; actualStatus != test.expectedStatus {
-			t.Errorf("%s\nhandler returned wrong status code: got %v want %v", test.name, actualStatus, test.expectedStatus)
-		}
-		resp := string(recorder.Body.Bytes())
-		if test.expectedStatus == http.StatusCreated && !strings.HasPrefix(resp, `{"jobID":`) {
-			t.Errorf("%s\nhandler didn't return created job id: %v", test.name, resp)
-		}
+			if actualStatus := recorder.Code; actualStatus != test.expectedStatus {
+				t.Errorf("%s\nhandler returned wrong status code: got %v want %v", test.name, actualStatus, test.expectedStatus)
+			}
+			resp := string(recorder.Body.Bytes())
+			if test.expectedStatus == http.StatusCreated && !strings.HasPrefix(resp, `{"jobID":`) {
+				t.Errorf("%s\nhandler didn't return created job id: %v", test.name, resp)
+			}
+		})
 	}
 }
 
@@ -128,7 +135,6 @@ func TestHandlerJobs(t *testing.T) {
 	}{
 		{
 			name: "normal case",
-			//IDs:          []string {"1", "2"},
 			getJobIdsF: func() []string {
 				return []string{"1", "2"}
 			},
@@ -220,7 +226,7 @@ type mockedPublisher struct {
 }
 
 func (p mockedPublisher) createJob(conceptType string, ids []string, baseURL string, gtgURL string, throttle int) (*internalJob, error) {
-	return p.createJobF(ids, baseURL, baseURL+"__gtg", throttle)
+	return p.createJobF(ids, baseURL, gtgURL, throttle)
 }
 
 func (p mockedPublisher) getJob(jobID string) (*internalJob, error) {

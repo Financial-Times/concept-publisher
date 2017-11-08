@@ -37,13 +37,13 @@ func (h publishHandler) createJob(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
-	log.Infof("message=\"Concept publish request received\" %v", jobRequest)
 	if jobRequest.URL == "" {
-		err := "Base url empty"
+		err := "'url' field can't be empty"
 		log.Warn(err)
 		http.Error(w, err, http.StatusBadRequest)
 		return
 	}
+	log.Infof("message=\"Concept publish request received\" %v", jobRequest)
 	theJob, err := (*h.publishService).createJob(jobRequest.ConceptType, jobRequest.IDS, jobRequest.URL, jobRequest.GtgURL, jobRequest.Throttle)
 	if err != nil {
 		log.Errorf("%v", err)

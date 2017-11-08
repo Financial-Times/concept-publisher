@@ -1,0 +1,4 @@
+apiVersion: v1
+description: concept-publisher Helm chart for Kubernetes
+name: concept-publisher
+version: 0.0.0

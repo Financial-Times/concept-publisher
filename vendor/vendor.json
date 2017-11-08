@@ -11,7 +11,7 @@
 			"versionExact": "0.3.0"
 		},
 		{
-			"checksumSHA1": "GrgODPqXv7QebQjfjrxMHctK0wE=",
+			"checksumSHA1": "4OtkapGYP9WO5JGqL3Dct/MUWTI=",
 			"path": "github.com/Financial-Times/message-queue-go-producer/producer",
 			"revision": "0bb065111416c0de78db51acb926ba3a3ae3c4e2",
 			"revisionTime": "2017-06-22T11:18:49Z",

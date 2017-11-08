@@ -4,7 +4,6 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
-	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
+	"net/url"
 )
 
 func main() {
@@ -53,9 +53,16 @@ func main() {
 		EnvVar: "S3_RW_ADDRESS",
 	})
 	app.Action = func() {
-		clusterRouterAddress, err := url.Parse(*clusterRouterAddress)
-		if err != nil {
-			log.Fatalf("Invalid clusterRouterAddress=%v %v", *clusterRouterAddress, err)
+		var parsedClusterRouterAddress *url.URL
+		if *clusterRouterAddress == ""{
+			log.Infof("No clusterRouterAddress provided, accessing transformers through provided absolute URLs.")
+		} else{
+			var err error
+			parsedClusterRouterAddress, err = url.Parse(*clusterRouterAddress)
+			if err != nil {
+				log.Fatalf("Invalid clusterRouterAddress=%v %v", *clusterRouterAddress, err)
+			}
+			log.Info("Valid clusterRouterAddress provided, accessing transformers through vulcan.")
 		}
 		httpClient := &http.Client{
 			Transport: &http.Transport{
@@ -76,7 +83,7 @@ func main() {
 		}
 
 		var httpCall caller = newHttpCaller(httpClient)
-		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries)
+		var publishService publisher = newPublishService(parsedClusterRouterAddress, &queueService, &httpCall, *gtgRetries)
 		hc := NewHealthCheck(messageProducer, *s3RwAddress, httpClient)
 		pubHandler := newPublishHandler(&publishService)
 		assignHandlers(*port, &pubHandler, hc)
