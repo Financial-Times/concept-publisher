@@ -8,13 +8,14 @@ import (
 	"strconv"
 	"time"
 
+	"net/url"
+
 	"github.com/Financial-Times/message-queue-go-producer/producer"
 	status "github.com/Financial-Times/service-status-go/httphandlers"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
-	"net/url"
 )
 
 func main() {
@@ -54,9 +55,9 @@ func main() {
 	})
 	app.Action = func() {
 		var parsedClusterRouterAddress *url.URL
-		if *clusterRouterAddress == ""{
+		if *clusterRouterAddress == "" {
 			log.Infof("No clusterRouterAddress provided, accessing transformers through provided absolute URLs.")
-		} else{
+		} else {
 			var err error
 			parsedClusterRouterAddress, err = url.Parse(*clusterRouterAddress)
 			if err != nil {

@@ -64,9 +64,15 @@ func (h *HealthCheck) canConnectToHttpEndpoint() fthealth.Check {
 
 func (h *HealthCheck) GTG() gtg.Status {
 	if h.producer != nil {
-		return gtgCheck(h.producer.ConnectivityCheck)
+		producerCheck := func() gtg.Status {
+			return gtgCheck(h.producer.ConnectivityCheck)
+		}
+		return gtg.FailFastParallelCheck([]gtg.StatusChecker{producerCheck})()
 	}
-	return gtgCheck(h.canConnectToHttpEndpointCheck)
+	httpCheck := func() gtg.Status {
+		return gtgCheck(h.canConnectToHttpEndpointCheck)
+	}
+	return gtg.FailFastParallelCheck([]gtg.StatusChecker{httpCheck})()
 }
 
 func gtgCheck(handler func() (string, error)) gtg.Status {

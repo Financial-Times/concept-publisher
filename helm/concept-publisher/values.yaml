@@ -10,5 +10,7 @@ image:
 resources:
   limits:
     memory: 1Gi
+  requests:
+    memory: 256Mi
 env:
   TOPIC: "" # This should be defined in the specific app-configs folder
