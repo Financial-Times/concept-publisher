@@ -1,0 +1,82 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "G8lW8pPVLieqh/MTJZkvI/i/WyM=",
+			"path": "github.com/Financial-Times/go-fthealth/v1_1",
+			"revision": "1b007e2b37b7936dfb6671fa17e5a29fd35a08ea",
+			"revisionTime": "2017-12-04T12:48:31Z",
+			"version": "0.4.0",
+			"versionExact": "0.4.0"
+		},
+		{
+			"checksumSHA1": "GrgODPqXv7QebQjfjrxMHctK0wE=",
+			"path": "github.com/Financial-Times/message-queue-go-producer/producer",
+			"revision": "0bb065111416c0de78db51acb926ba3a3ae3c4e2",
+			"revisionTime": "2017-06-22T11:18:49Z",
+			"version": "0.2.0",
+			"versionExact": "0.2.0"
+		},
+		{
+			"checksumSHA1": "fpmb1rRyi/c4byRjNhsHaUppDg0=",
+			"path": "github.com/Financial-Times/service-status-go",
+			"revision": "3f5199736a3d7ae52394c63aac36834786825e21",
+			"revisionTime": "2016-03-23T11:15:42Z",
+			"tree": true,
+			"version": "0.1.0",
+			"versionExact": "0.1.0"
+		},
+		{
+			"checksumSHA1": "DYv6Q1+VfnUVxMwvk5IshAClLvw=",
+			"path": "github.com/Sirupsen/logrus",
+			"revision": "5e5dc898656f695e2a086b8e12559febbfc01562",
+			"revisionTime": "2017-05-15T10:45:16Z"
+		},
+		{
+			"checksumSHA1": "OFu4xJEIjiI8Suu+j/gabfp+y6Q=",
+			"origin": "github.com/stretchr/testify/vendor/github.com/davecgh/go-spew/spew",
+			"path": "github.com/davecgh/go-spew/spew",
+			"revision": "4d4bfba8f1d1027c4fdbe371823030df51419987",
+			"revisionTime": "2017-01-30T11:31:45Z"
+		},
+		{
+			"checksumSHA1": "+/oy2SsS8YvHVvQGcWUDbaajeXQ=",
+			"path": "github.com/gorilla/handlers",
+			"revision": "13d73096a474cac93275c679c7b8a2dc17ddba82",
+			"revisionTime": "2017-02-24T19:39:55Z"
+		},
+		{
+			"checksumSHA1": "m+Xb6aeLpAjIjq9Utnicv+e96TQ=",
+			"path": "github.com/gorilla/mux",
+			"revision": "043ee6597c29786140136a5747b6a886364f5282",
+			"revisionTime": "2017-05-24T00:31:38Z"
+		},
+		{
+			"checksumSHA1": "tUGxc7rfX0cmhOOUDhMuAZ9rWsA=",
+			"path": "github.com/hashicorp/go-version",
+			"revision": "03c5bf6be031b6dd45afec16b1cf94fc8938bc77",
+			"revisionTime": "2017-02-02T08:07:59Z"
+		},
+		{
+			"checksumSHA1": "NK3DaezXmT5QyDImKH+qqI2Xa7c=",
+			"path": "github.com/jawher/mow.cli",
+			"revision": "8327d12beb75e6471b7f045588acc318d1147146",
+			"revisionTime": "2017-04-30T13:52:12Z"
+		},
+		{
+			"checksumSHA1": "zKKp5SZ3d3ycKe4EKMNT0BqAWBw=",
+			"origin": "github.com/stretchr/testify/vendor/github.com/pmezard/go-difflib/difflib",
+			"path": "github.com/pmezard/go-difflib/difflib",
+			"revision": "4d4bfba8f1d1027c4fdbe371823030df51419987",
+			"revisionTime": "2017-01-30T11:31:45Z"
+		},
+		{
+			"checksumSHA1": "JXUVA1jky8ZX8w09p2t5KLs97Nc=",
+			"path": "github.com/stretchr/testify/assert",
+			"revision": "4d4bfba8f1d1027c4fdbe371823030df51419987",
+			"revisionTime": "2017-01-30T11:31:45Z"
+		}
+	],
+	"rootPath": "github.com/Financial-Times/concept-publisher"
+}

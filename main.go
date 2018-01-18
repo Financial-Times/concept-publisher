@@ -4,12 +4,14 @@ import (
 	"net"
 	"net/http"
 	_ "net/http/pprof"
-	"net/url"
 	"os"
 	"strconv"
 	"time"
 
+	"net/url"
+
 	"github.com/Financial-Times/message-queue-go-producer/producer"
+	status "github.com/Financial-Times/service-status-go/httphandlers"
 	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -52,9 +54,16 @@ func main() {
 		EnvVar: "S3_RW_ADDRESS",
 	})
 	app.Action = func() {
-		clusterRouterAddress, err := url.Parse(*clusterRouterAddress)
-		if err != nil {
-			log.Fatalf("Invalid clusterRouterAddress=%v %v", *clusterRouterAddress, err)
+		var parsedClusterRouterAddress *url.URL
+		if *clusterRouterAddress == "" {
+			log.Infof("No clusterRouterAddress provided, accessing transformers through provided absolute URLs.")
+		} else {
+			var err error
+			parsedClusterRouterAddress, err = url.Parse(*clusterRouterAddress)
+			if err != nil {
+				log.Fatalf("Invalid clusterRouterAddress=%v %v", *clusterRouterAddress, err)
+			}
+			log.Info("Valid clusterRouterAddress provided, accessing transformers through vulcan.")
 		}
 		httpClient := &http.Client{
 			Transport: &http.Transport{
@@ -66,18 +75,19 @@ func main() {
 			},
 		}
 		var queueService queue
+		var messageProducer producer.MessageProducer
 		if *proxyAddress != "" {
-			messageProducer := producer.NewMessageProducer(producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic})
+			messageProducer = producer.NewMessageProducer(producer.MessageProducerConfig{Addr: *proxyAddress, Topic: *topic})
 			queueService = newQueueService(&messageProducer)
 		} else if *s3RwAddress != "" {
 			queueService = newHttpQueueService(httpClient, *s3RwAddress)
 		}
 
 		var httpCall caller = newHttpCaller(httpClient)
-		var publishService publisher = newPublishService(clusterRouterAddress, &queueService, &httpCall, *gtgRetries)
-		healthHandler := newHealthcheckHandler(*topic, *proxyAddress, httpClient, *s3RwAddress)
+		var publishService publisher = newPublishService(parsedClusterRouterAddress, &queueService, &httpCall, *gtgRetries)
+		hc := NewHealthCheck(messageProducer, *s3RwAddress, httpClient)
 		pubHandler := newPublishHandler(&publishService)
-		assignHandlers(*port, &pubHandler, &healthHandler)
+		assignHandlers(*port, &pubHandler, hc)
 	}
 	err := app.Run(os.Args)
 	if err != nil {
@@ -85,15 +95,19 @@ func main() {
 	}
 }
 
-func assignHandlers(port int, publisherHandler *publishHandler, healthcheckHandler *healthcheckHandler) {
+func assignHandlers(port int, publisherHandler *publishHandler, hc *HealthCheck) {
 	m := mux.NewRouter()
 	http.Handle("/", handlers.CombinedLoggingHandler(os.Stdout, m))
 	m.HandleFunc("/jobs", publisherHandler.createJob).Methods("POST")
 	m.HandleFunc("/jobs", publisherHandler.listJobs).Methods("GET")
 	m.HandleFunc("/jobs/{id}", publisherHandler.status).Methods("GET")
 	m.HandleFunc("/jobs/{id}", publisherHandler.deleteJob).Methods("DELETE")
-	m.HandleFunc("/__health", healthcheckHandler.health())
-	m.HandleFunc("/__gtg", healthcheckHandler.gtg)
+	m.HandleFunc("/__health", hc.Health())
+	m.HandleFunc(status.GTGPath, status.NewGoodToGoHandler(hc.GTG))
+	m.HandleFunc(status.PingPath, status.PingHandler)
+	m.HandleFunc(status.PingPathDW, status.PingHandler)
+	m.HandleFunc(status.BuildInfoPath, status.BuildInfoHandler)
+	m.HandleFunc(status.BuildInfoPathDW, status.BuildInfoHandler)
 	log.Infof("Listening on [%v].\n", port)
 	err := http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	if err != nil {
