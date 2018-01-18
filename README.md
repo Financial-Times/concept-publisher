@@ -21,6 +21,10 @@ For environments using vulcan-based routing, set the `CLUSTER_ROUTER_ADDRESS`.
 ### URL-based routing
 For environments using regular URLs, don't set the `CLUSTER_ROUTER_ADDRESS`.
 
+## NOTE
+
+This concept publishing pipeline is nearing end of life. It can currently only used to publish all organisations, factset people and authors. Most TME concepts have been switched over to use the new concept publishing pipeline described in detail [here](https://sites.google.com/a/ft.com/universal-publishing/documentation/introduction-to-metadata) which are published via the [basic-tme-transformer](https://github.com/Financial-Times/basic-tme-transformer)
+
 ## Endpoints
 
 ### GET /jobs
@@ -71,19 +75,20 @@ curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
 ```
 curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
 {
-  "concept": "special-reports",
-  "url": "/__special-reports-transformer/transformers/special-reports/",
-  "gtgUrl": "/__special-reports-transformer/__gtg",
+  "concept": "organisations",
+  "url": "/__composite-orgs-transformer/transformers/organisations/",
+  "gtgUrl": "/__composite-orgs-transformer/__gtg",
   "throttle": 1000,
+  "authorization": "Basic base64user:pass"
+  "ids": ["50a4bb3c-fc46-11e7-9dea-0401beb96201", "68ceb815-b81b-42f1-8f52-7e54f362a5d9"]
 }'
 
 curl -X POST -H "Content-Type: application/json" localhost:8080/jobs --data '
 {
-  "concept": "brands",
-  "ids": ["uuid1", "uuid2"],
-  "url": "https://brands-transformer-up.ft.com/transformers/brands/",
-  "gtgUrl": "https://brands-transformer-up.ft.com/build-info",
-  "throttle": 1000
+  "concept":"people", 
+  "url": "/__v1-authors-transformer/transformers/authors/", 
+  "gtgUrl": "/__v1-authors-transformer/__gtg"
+  "throttle": 1000,
   "authorization": "Basic base64user:pass"
 }'
 ```
